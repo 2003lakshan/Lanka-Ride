@@ -4,15 +4,13 @@ import { redirect } from "next/navigation";
 import dbConnect from "@/lib/mongodb";
 import User from "@/models/User";
 import Booking from "@/models/Booking";
-import Airport from "@/models/Airport";
-import VehicleType from "@/models/VehicleType";
-import { Users, Car, UserCircle } from "lucide-react";
-import AdminDriverActions from "@/components/admin/AdminDriverActions";
-import AdminDeleteUser from "@/components/admin/AdminDeleteUser";
+import Link from "next/link";
+import { Users, AlertTriangle, Activity, CalendarCheck, ArrowRight, MapPin, CheckCircle, Clock } from "lucide-react";
+import CustomTripRequestsSection from "@/components/admin/CustomTripRequestsSection";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminDashboard() {
+export default async function AdminOverview() {
   const session = await getServerSession(authOptions);
 
   if (!session || (session.user as any).role !== "ADMIN") {
@@ -21,191 +19,240 @@ export default async function AdminDashboard() {
 
   await dbConnect();
   
-  // Ensure models are registered to prevent "MissingSchemaError"
-  if (Airport && VehicleType) {
-    // Just a no-op to prevent tree-shaking
-  }
+  // Real data fetching
+  const pendingDriversCount = await User.countDocuments({ role: "DRIVER", isApproved: false });
+  const unassignedBookingsCount = await Booking.countDocuments({ 
+    driverId: { $exists: false },
+    status: { $in: ["PENDING", "CONFIRMED"] }
+  });
   
-  const drivers = await User.find({ role: "DRIVER" }).sort({ createdAt: -1 }).lean();
-  const riders = await User.find({ role: "TOURIST" }).sort({ createdAt: -1 }).lean();
-  const bookings = await Booking.find().populate('airportId').populate('vehicleTypeId').sort({ createdAt: -1 }).lean();
+  const activeStatuses = ["DRIVER_ASSIGNED", "DRIVER_EN_ROUTE", "DRIVER_ARRIVED", "PASSENGER_PICKED_UP", "TRIP_IN_PROGRESS"];
+  const activeTripsCount = await Booking.countDocuments({ status: { $in: activeStatuses as any } });
+  
+  const completedTripsCount = await Booking.countDocuments({ status: "COMPLETED" });
 
-  const pendingDrivers = drivers.filter(d => !d.isApproved);
-  const approvedDrivers = drivers.filter(d => d.isApproved);
+  const recentBookings = await Booking.find()
+    .populate('airportId', 'name')
+    .sort({ createdAt: -1 })
+    .limit(5)
+    .lean();
+
+  // Find trips with stale tracking (last updated > 5 mins ago)
+  const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+  const staleTrips = await Booking.find({
+    status: { $in: activeStatuses as any },
+    $or: [
+      { driverLocation: { $exists: false } },
+      { "driverLocation.updatedAt": { $lt: fiveMinutesAgo } }
+    ]
+  }).select('bookingReference status').lean();
+
+  const customTrips = await Booking.find({
+    "customTripDetails.isCustomTrip": true,
+    status: { $ne: "DRAFT" }
+  })
+    .populate('touristId', 'name fullName email')
+    .populate('driverId', 'name')
+    .sort({ createdAt: -1 })
+    .lean();
+
+  const serializedCustomTrips = customTrips.map((b: any) => ({
+    ...b,
+    _id: b._id.toString(),
+    touristId: b.touristId ? { ...b.touristId, _id: b.touristId._id.toString() } : null,
+    driverId: b.driverId ? { ...b.driverId, _id: b.driverId._id.toString() } : null,
+    airportId: b.airportId ? { ...b.airportId, _id: b.airportId._id.toString() } : null,
+    vehicleTypeId: b.vehicleTypeId ? { ...b.vehicleTypeId, _id: b.vehicleTypeId._id.toString() } : null,
+    createdAt: b.createdAt ? b.createdAt.toISOString() : null,
+  }));
 
   return (
-    <div className="bg-slate-50 min-h-screen py-12">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
-        
-        <div className="flex justify-between items-end">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900 mb-2">Admin Dashboard</h1>
-            <p className="text-slate-600">Manage drivers and oversee all platform bookings.</p>
-          </div>
-          <div className="flex gap-4">
-            <div className="bg-white px-4 py-2 rounded-lg border border-slate-200 shadow-sm text-center">
-              <div className="text-sm text-slate-500 font-bold uppercase">Pending Drivers</div>
-              <div className="text-xl font-bold text-yellow-600">{pendingDrivers.length}</div>
+    <div className="space-y-8 animate-in fade-in duration-500">
+      <div>
+        <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Overview</h1>
+        <p className="text-slate-500 mt-1">Monitor the pulse of your operations.</p>
+      </div>
+
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <Link href="/admin/approvals" className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm hover:shadow-md transition-shadow group">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-1">Pending Approvals</p>
+              <h2 className="text-4xl font-black text-amber-500">{pendingDriversCount}</h2>
             </div>
-            <div className="bg-white px-4 py-2 rounded-lg border border-slate-200 shadow-sm text-center">
-              <div className="text-sm text-slate-500 font-bold uppercase">Total Bookings</div>
-              <div className="text-xl font-bold text-blue-600">{bookings.length}</div>
+            <div className="p-3 bg-amber-50 text-amber-600 rounded-xl group-hover:scale-110 transition-transform">
+              <Users size={24} />
+            </div>
+          </div>
+        </Link>
+        
+        <Link href="/admin/trips" className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm hover:shadow-md transition-shadow group">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-1">Unassigned Bookings</p>
+              <h2 className="text-4xl font-black text-rose-500">{unassignedBookingsCount}</h2>
+            </div>
+            <div className="p-3 bg-rose-50 text-rose-600 rounded-xl group-hover:scale-110 transition-transform">
+              <AlertTriangle size={24} />
+            </div>
+          </div>
+        </Link>
+
+        <Link href="/admin/active-trips" className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm hover:shadow-md transition-shadow group">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-1">Active Trips</p>
+              <h2 className="text-4xl font-black text-blue-500">{activeTripsCount}</h2>
+            </div>
+            <div className="p-3 bg-blue-50 text-blue-600 rounded-xl group-hover:scale-110 transition-transform">
+              <Activity size={24} />
+            </div>
+          </div>
+        </Link>
+
+        <Link href="/admin/trips?status=COMPLETED" className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm hover:shadow-md transition-shadow group">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-1">Completed Trips</p>
+              <h2 className="text-4xl font-black text-emerald-500">{completedTripsCount}</h2>
+            </div>
+            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl group-hover:scale-110 transition-transform">
+              <CheckCircle size={24} />
+            </div>
+          </div>
+        </Link>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Needs Attention Panel */}
+        <div className="lg:col-span-1 space-y-6">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full">
+            <div className="p-5 border-b border-slate-100 bg-slate-50 flex items-center gap-3">
+              <AlertTriangle className="text-rose-500" size={20} />
+              <h3 className="font-bold text-slate-900">Needs Attention</h3>
+            </div>
+            <div className="p-5 flex-1 space-y-4">
+              {pendingDriversCount > 0 && (
+                <div className="flex items-center justify-between p-4 bg-amber-50/50 border border-amber-100 rounded-xl">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-amber-100 text-amber-600 rounded-lg"><Users size={16} /></div>
+                    <div>
+                      <p className="font-medium text-slate-900 text-sm">{pendingDriversCount} driver(s) pending</p>
+                      <p className="text-xs text-slate-500">Awaiting approval</p>
+                    </div>
+                  </div>
+                  <Link href="/admin/approvals" className="text-xs font-bold text-amber-600 hover:text-amber-700">Review</Link>
+                </div>
+              )}
+
+              {unassignedBookingsCount > 0 && (
+                <div className="flex items-center justify-between p-4 bg-rose-50/50 border border-rose-100 rounded-xl">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-rose-100 text-rose-600 rounded-lg"><CalendarCheck size={16} /></div>
+                    <div>
+                      <p className="font-medium text-slate-900 text-sm">{unassignedBookingsCount} unassigned</p>
+                      <p className="text-xs text-slate-500">Bookings missing drivers</p>
+                    </div>
+                  </div>
+                  <Link href="/admin/trips" className="text-xs font-bold text-rose-600 hover:text-rose-700">Assign</Link>
+                </div>
+              )}
+
+              {staleTrips.length > 0 && (
+                <div className="flex items-center justify-between p-4 bg-slate-50 border border-slate-200 rounded-xl">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-slate-200 text-slate-600 rounded-lg"><MapPin size={16} /></div>
+                    <div>
+                      <p className="font-medium text-slate-900 text-sm">{staleTrips.length} stale tracking</p>
+                      <p className="text-xs text-slate-500">Location lost in active trips</p>
+                    </div>
+                  </div>
+                  <Link href="/admin/active-trips" className="text-xs font-bold text-slate-600 hover:text-slate-900">Check</Link>
+                </div>
+              )}
+
+              {pendingDriversCount === 0 && unassignedBookingsCount === 0 && staleTrips.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <div className="w-12 h-12 bg-green-50 text-green-500 rounded-full flex items-center justify-center mb-3">
+                    <CheckCircle size={24} />
+                  </div>
+                  <p className="font-medium text-slate-900">All clear!</p>
+                  <p className="text-sm text-slate-500">Nothing requires immediate attention.</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Drivers Section */}
-        <section>
-          <h2 className="text-2xl font-bold text-slate-800 mb-6 flex items-center gap-2">
-            <Users className="text-blue-600" /> Driver Management
-          </h2>
-          
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-            <table className="min-w-full divide-y divide-slate-200">
-              <thead className="bg-slate-50">
-                <tr>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Driver Details</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Contact</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Vehicle / License</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {drivers.map((driver: any) => (
-                  <tr key={driver._id.toString()}>
-                    <td className="px-6 py-4">
-                      <div className="font-bold text-slate-900">{driver.name}</div>
-                      <div className="text-sm text-slate-500">Joined {new Date(driver.createdAt).toLocaleDateString()}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm text-slate-900">{driver.email}</div>
-                      <div className="text-sm text-slate-500">{driver.phoneNumber || "N/A"}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm text-slate-900">{driver.vehicleRegistration}</div>
-                      <div className="text-sm text-slate-500">{driver.licenseNumber}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex px-2 py-1 text-xs font-bold rounded-full ${driver.isApproved ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                        {driver.isApproved ? 'Approved' : 'Pending'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm font-medium">
-                      <AdminDriverActions driverId={driver._id.toString()} isApproved={driver.isApproved} />
-                    </td>
-                  </tr>
-                ))}
-                {drivers.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="px-6 py-8 text-center text-slate-500">No drivers registered yet.</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
+        {/* Custom Trip Requests */}
+        <div className="lg:col-span-3">
+          <CustomTripRequestsSection customTrips={serializedCustomTrips} />
+        </div>
 
-        {/* Riders Section */}
-        <section>
-          <h2 className="text-2xl font-bold text-slate-800 mb-6 flex items-center gap-2">
-            <UserCircle className="text-blue-600" /> Rider Management
-          </h2>
-          
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-            <table className="min-w-full divide-y divide-slate-200">
-              <thead className="bg-slate-50">
-                <tr>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Rider Details</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Contact</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {riders.map((rider: any) => (
-                  <tr key={rider._id.toString()}>
-                    <td className="px-6 py-4">
-                      <div className="font-bold text-slate-900">{rider.name}</div>
-                      <div className="text-sm text-slate-500">Joined {new Date(rider.createdAt).toLocaleDateString()}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm text-slate-900">{rider.email}</div>
-                      {rider.phoneNumber && <div className="text-sm text-slate-500">{rider.phoneNumber}</div>}
-                    </td>
-                    <td className="px-6 py-4 text-sm font-medium">
-                      <AdminDeleteUser userId={rider._id.toString()} />
-                    </td>
-                  </tr>
-                ))}
-                {riders.length === 0 && (
+        {/* Recent Bookings */}
+        <div className="lg:col-span-2">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="font-bold text-slate-900">Recent Bookings</h3>
+              <Link href="/admin/trips" className="text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1">
+                View all <ArrowRight size={16} />
+              </Link>
+            </div>
+            
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead className="text-xs text-slate-500 uppercase bg-slate-50/50">
                   <tr>
-                    <td colSpan={3} className="px-6 py-8 text-center text-slate-500">No riders registered yet.</td>
+                    <th className="px-6 py-4 font-semibold">Reference</th>
+                    <th className="px-6 py-4 font-semibold">Date</th>
+                    <th className="px-6 py-4 font-semibold">Status</th>
+                    <th className="px-6 py-4 font-semibold text-right">Action</th>
                   </tr>
-                )}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {recentBookings.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="px-6 py-8 text-center text-slate-500">No recent bookings found.</td>
+                    </tr>
+                  ) : (
+                    recentBookings.map((booking: any) => (
+                      <tr key={booking._id.toString()} className="hover:bg-slate-50 transition-colors group">
+                        <td className="px-6 py-4">
+                          <div className="font-medium text-slate-900">{booking.bookingReference}</div>
+                          <div className="text-xs text-slate-500 line-clamp-1">
+                            {booking.airportId?.name || 'Airport'} → {booking.destinationAddress?.split(',')[0]}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-2 text-slate-600">
+                            <Clock size={14} className="text-slate-400" />
+                            {new Date(booking.createdAt).toLocaleDateString()}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`px-2.5 py-1 rounded-full text-xs font-semibold
+                            ${booking.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' :
+                              booking.status === 'PENDING' ? 'bg-rose-100 text-rose-700' :
+                              booking.status.includes('DRIVER') ? 'bg-blue-100 text-blue-700' :
+                              'bg-slate-100 text-slate-700'
+                            }`}>
+                            {booking.status.replace(/_/g, ' ')}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <Link href={`/admin/trips/${booking._id.toString()}`} className="text-blue-600 font-medium hover:underline text-sm">
+                            View details
+                          </Link>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </section>
-
-        {/* Bookings Section */}
-        <section>
-          <h2 className="text-2xl font-bold text-slate-800 mb-6 flex items-center gap-2">
-            <Car className="text-blue-600" /> All Platform Bookings
-          </h2>
-          
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200">
-              <thead className="bg-slate-50">
-                <tr>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Ref / Date</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Route</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Passenger</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Fare</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {bookings.map((booking: any) => (
-                  <tr key={booking._id.toString()} className="hover:bg-slate-50">
-                    <td className="px-6 py-4">
-                      <div className="font-mono font-bold text-slate-900">{booking.bookingReference}</div>
-                      <div className="text-sm text-slate-500">{new Date(booking.createdAt).toLocaleDateString()}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm font-medium text-slate-900 line-clamp-1">{booking.airportId?.name || "Airport"} &rarr;</div>
-                      <div className="text-sm text-slate-500 line-clamp-1">{booking.destinationAddress}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm font-medium text-slate-900">{booking.passengerDetails.fullName}</div>
-                      <div className="text-sm text-slate-500">{booking.passengerDetails.whatsappNumber}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="font-bold text-slate-900">LKR {booking.fareBreakdown.totalEstimatedFare.toLocaleString()}</div>
-                      <div className="text-xs text-slate-500">{booking.paymentMethod.replace("_", " ")}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex px-2 py-1 text-xs font-bold rounded-full ${
-                        booking.status === 'COMPLETED' ? 'bg-green-100 text-green-800' : 
-                        booking.status.includes('DRIVER') ? 'bg-indigo-100 text-indigo-800' :
-                        booking.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-slate-100 text-slate-800'
-                      }`}>
-                        {booking.status.replace(/_/g, " ")}
-                      </span>
-                      {booking.driverId && <div className="text-xs text-slate-400 mt-1">Assigned</div>}
-                    </td>
-                  </tr>
-                ))}
-                {bookings.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="px-6 py-8 text-center text-slate-500">No bookings yet.</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
+        </div>
       </div>
     </div>
   );

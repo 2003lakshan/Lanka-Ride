@@ -28,6 +28,10 @@ export async function DELETE(
     // For now, we will simply delete the user.
     await User.findByIdAndDelete(id);
 
+    import("@/lib/realtime").then(async ({ revokeUserSession }) => {
+      await revokeUserSession(id);
+    }).catch(console.error);
+
     return NextResponse.json({ message: "User deleted successfully" }, { status: 200 });
   } catch (error: any) {
     console.error("Delete user error:", error);

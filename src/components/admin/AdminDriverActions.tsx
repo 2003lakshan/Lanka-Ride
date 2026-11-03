@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
-export default function AdminDriverActions({ driverId, isApproved }: { driverId: string, isApproved: boolean }) {
+export default function AdminDriverActions({ driverId, isApproved, showViewDetails = true }: { driverId: string, isApproved: boolean, showViewDetails?: boolean }) {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
@@ -54,7 +55,15 @@ export default function AdminDriverActions({ driverId, isApproved }: { driverId:
   };
 
   return (
-    <div className="flex gap-2">
+    <div className="flex gap-2 items-center flex-wrap">
+      {showViewDetails && (
+        <Link
+          href={`/admin/users/${driverId}`}
+          className="text-xs font-bold px-3 py-1.5 rounded-lg bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition-colors"
+        >
+          View Details
+        </Link>
+      )}
       <button
         onClick={handleToggleApproval}
         disabled={loading}

@@ -6,7 +6,7 @@ import User from "@/models/User";
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    let { name, email, password, role, phoneNumber, nationality, licenseNumber, vehicleRegistration } = body;
+    let { name, email, password, role, phoneNumber, nationality, licenseNumber, vehicleRegistration, driverDetails } = body;
 
     if (!name || !email || !password || !role) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -41,10 +41,31 @@ export async function POST(request: Request) {
       }
       userData.licenseNumber = licenseNumber;
       userData.vehicleRegistration = vehicleRegistration;
+      userData.driverDetails = driverDetails;
       userData.isApproved = false;
     }
 
     const newUser = await User.create(userData);
+
+    if (role === "DRIVER") {
+      import("@/lib/notifications").then(async ({ sendNotification, notifyAdmins }) => {
+        await sendNotification({
+          recipientId: newUser._id.toString(),
+          type: "REGISTRATION_RECEIVED",
+          title: "Registration Received",
+          message: `Your driver application has been received and is pending admin review.`,
+          link: `/profile`,
+          deduplicationKey: `driver_reg_${newUser._id.toString()}`
+        });
+        await notifyAdmins({
+          type: "NEW_DRIVER_APPLICATION",
+          title: "New Driver Application",
+          message: `Driver ${newUser.name} has registered and requires approval.`,
+          link: `/admin/approvals`,
+          deduplicationKey: `admin_driver_reg_${newUser._id.toString()}`
+        });
+      }).catch(console.error);
+    }
 
     return NextResponse.json(
       { message: "User registered successfully", user: { id: newUser._id, email: newUser.email, role: newUser.role } },

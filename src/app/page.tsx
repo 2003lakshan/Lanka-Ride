@@ -1,3 +1,4 @@
+import PickMeBookingCard from "@/components/booking/PickMeBookingCard";
 import Link from "next/link";
 import { ArrowRight, MapPin, Calendar, Clock, ShieldCheck, ThumbsUp, CreditCard, Phone, Mail, MessageSquare, Package } from "lucide-react";
 import Image from "next/image";
@@ -47,63 +48,8 @@ export default async function Home() {
           </div>
 
           {/* Right Search Box */}
-          <div id="search" className="flex-1 w-full max-w-lg bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl p-6 md:p-8 transform md:translate-y-6 border border-white/20">
-            <h2 className="text-2xl font-extrabold text-slate-900 mb-6 flex items-center gap-2">
-              <span className="w-8 h-1 bg-blue-600 rounded-full block"></span>
-              Where to?
-            </h2>
-            <form className="space-y-5">
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-1.5 uppercase tracking-wide">Pickup Location</label>
-                <div className="relative group">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                    <MapPin size={18} className="text-slate-400 group-focus-within:text-blue-500 transition-colors" />
-                  </div>
-                  <select className="block w-full pl-10 pr-10 py-3.5 border-2 border-slate-200 rounded-xl focus:ring-0 focus:border-blue-500 bg-slate-50 hover:bg-white text-slate-700 font-medium transition-all appearance-none cursor-pointer">
-                    <option>Bandaranaike International Airport (CMB)</option>
-                    <option>Mattala Rajapaksa International (HRI)</option>
-                  </select>
-                  <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none">
-                    <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
-                  </div>
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-1.5 uppercase tracking-wide">Destination</label>
-                <div className="relative group">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                    <MapPin size={18} className="text-blue-500" />
-                  </div>
-                  <input type="text" placeholder="e.g. Kandy, Galle, Ella..." className="block w-full pl-10 pr-3.5 py-3.5 border-2 border-slate-200 rounded-xl focus:ring-0 focus:border-blue-500 bg-slate-50 hover:bg-white text-slate-800 font-medium transition-all" />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-1.5 uppercase tracking-wide">Date</label>
-                  <div className="relative group">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                      <Calendar size={18} className="text-slate-400 group-focus-within:text-blue-500 transition-colors" />
-                    </div>
-                    <input type="date" className="block w-full pl-10 pr-3.5 py-3.5 border-2 border-slate-200 rounded-xl focus:ring-0 focus:border-blue-500 bg-slate-50 hover:bg-white text-slate-800 font-medium transition-all" />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-1.5 uppercase tracking-wide">Time</label>
-                  <div className="relative group">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                      <Clock size={18} className="text-slate-400 group-focus-within:text-blue-500 transition-colors" />
-                    </div>
-                    <input type="time" className="block w-full pl-10 pr-3.5 py-3.5 border-2 border-slate-200 rounded-xl focus:ring-0 focus:border-blue-500 bg-slate-50 hover:bg-white text-slate-800 font-medium transition-all" />
-                  </div>
-                </div>
-              </div>
-
-              <Link href="/booking" className="w-full mt-4 bg-slate-900 hover:bg-slate-800 text-white py-4 rounded-xl font-bold text-lg transition-all flex justify-center items-center shadow-lg shadow-slate-900/20 group">
-                Search Vehicles <ArrowRight size={20} className="ml-2 group-hover:translate-x-1 transition-transform" />
-              </Link>
-            </form>
+          <div id="search" className="flex-1 w-full max-w-xl transform md:translate-y-4">
+            <PickMeBookingCard />
           </div>
           
         </div>

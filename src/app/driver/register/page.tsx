@@ -2,9 +2,29 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Plane, Mail, Lock, User, Car, FileText, ArrowRight } from "lucide-react";
+import { Car, ArrowRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
+
+const SectionTitle = ({ title }: { title: string }) => (
+  <h3 className="text-xl font-bold text-slate-800 border-b-2 border-slate-200 pb-3 mt-10 mb-6">{title}</h3>
+);
+
+const InputField = ({ label, name, type = "text", placeholder = "", required = false, formData, handleChange }: any) => (
+  <div>
+    <label className="block text-sm font-semibold text-slate-700 mb-2">{label} {required && <span className="text-red-500">*</span>}</label>
+    <input type={type} name={name} required={required} value={(formData as any)[name] || ""} onChange={handleChange} className="w-full p-3 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 transition-all text-slate-800" placeholder={placeholder} />
+  </div>
+);
+
+const SelectField = ({ label, name, options, required = false, formData, handleChange }: any) => (
+  <div>
+    <label className="block text-sm font-semibold text-slate-700 mb-2">{label} {required && <span className="text-red-500">*</span>}</label>
+    <select name={name} required={required} value={(formData as any)[name] || ""} onChange={handleChange} className="w-full p-3 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 transition-all text-slate-800">
+      {options.map((opt: any) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+    </select>
+  </div>
+);
 
 export default function DriverRegistrationPage() {
   const [formData, setFormData] = useState({
@@ -14,13 +34,47 @@ export default function DriverRegistrationPage() {
     phoneNumber: "",
     licenseNumber: "",
     vehicleRegistration: "",
+    // Driver identity
+    nicOrPassportNumber: "",
+    dateOfBirth: "",
+    homeDistrict: "",
+    // Driving licence
+    licenseClasses: "",
+    licenseExpiryDate: "",
+    // Vehicle
+    vehicleMake: "",
+    vehicleModel: "",
+    vehicleYear: "",
+    passengerSeats: "",
+    luggageCapacity: "",
+    // Vehicle documents
+    insurancePolicyNumber: "",
+    insuranceExpiryDate: "",
+    revenueLicenseExpiryDate: "",
+    // Tour service
+    languagesSpoken: "",
+    areasServed: "",
+    airportPickupAvailable: "true",
+    multiDayTripAvailable: "true",
+    guidedToursAvailable: "true",
+    // Safety and operations
+    emergencyContactName: "",
+    emergencyContactNumber: "",
+    childSeatAvailable: "false",
+    airConditioning: "true",
+    availabilitySchedule: "",
+    // Payment
+    bankAccountName: "",
+    bankAccountNumber: "",
+    bankName: "",
+    bankBranchName: "",
   });
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
@@ -34,8 +88,42 @@ export default function DriverRegistrationPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...formData,
+          name: formData.name,
+          email: formData.email,
+          password: formData.password,
+          phoneNumber: formData.phoneNumber,
+          licenseNumber: formData.licenseNumber,
+          vehicleRegistration: formData.vehicleRegistration,
           role: "DRIVER",
+          driverDetails: {
+            nicOrPassportNumber: formData.nicOrPassportNumber,
+            dateOfBirth: formData.dateOfBirth,
+            homeDistrict: formData.homeDistrict,
+            licenseClasses: formData.licenseClasses,
+            licenseExpiryDate: formData.licenseExpiryDate,
+            vehicleMake: formData.vehicleMake,
+            vehicleModel: formData.vehicleModel,
+            vehicleYear: formData.vehicleYear,
+            passengerSeats: formData.passengerSeats,
+            luggageCapacity: formData.luggageCapacity,
+            insurancePolicyNumber: formData.insurancePolicyNumber,
+            insuranceExpiryDate: formData.insuranceExpiryDate,
+            revenueLicenseExpiryDate: formData.revenueLicenseExpiryDate,
+            languagesSpoken: formData.languagesSpoken,
+            areasServed: formData.areasServed,
+            airportPickupAvailable: formData.airportPickupAvailable === "true",
+            multiDayTripAvailable: formData.multiDayTripAvailable === "true",
+            guidedToursAvailable: formData.guidedToursAvailable === "true",
+            emergencyContactName: formData.emergencyContactName,
+            emergencyContactNumber: formData.emergencyContactNumber,
+            childSeatAvailable: formData.childSeatAvailable === "true",
+            airConditioning: formData.airConditioning === "true",
+            availabilitySchedule: formData.availabilitySchedule,
+            bankAccountName: formData.bankAccountName,
+            bankAccountNumber: formData.bankAccountNumber,
+            bankName: formData.bankName,
+            bankBranchName: formData.bankBranchName,
+          }
         }),
       });
 
@@ -45,7 +133,6 @@ export default function DriverRegistrationPage() {
         throw new Error(data.error || "Failed to register as driver");
       }
 
-      // Automatically sign in
       const signInResult = await signIn("credentials", {
         email: formData.email,
         password: formData.password,
@@ -67,114 +154,109 @@ export default function DriverRegistrationPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
-      
-      {/* Background Decorative Elements */}
-      <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0 pointer-events-none">
-        <div className="absolute top-[20%] -left-[10%] w-[40%] h-[40%] rounded-full bg-blue-400/10 blur-3xl"></div>
-        <div className="absolute bottom-[10%] -right-[10%] w-[30%] h-[30%] rounded-full bg-indigo-600/10 blur-3xl"></div>
-      </div>
-
-      <div className="max-w-2xl mx-auto space-y-8 bg-white/80 backdrop-blur-xl p-8 md:p-12 rounded-3xl shadow-xl border border-slate-100 z-10 relative">
+      <div className="max-w-4xl mx-auto space-y-8 bg-white p-8 md:p-12 rounded-3xl shadow-xl border border-slate-200 z-10 relative">
         <div className="text-center">
-          <div className="mx-auto bg-slate-900 text-white w-14 h-14 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-slate-900/30">
-            <Car size={28} />
+          <div className="mx-auto bg-slate-900 text-white w-16 h-16 rounded-2xl flex items-center justify-center mb-6 shadow-lg">
+            <Car size={32} />
           </div>
-          <h2 className="text-3xl font-bold text-slate-900 tracking-tight">Become a Driver</h2>
-          <p className="mt-2 text-sm text-slate-500 font-medium max-w-md mx-auto">
-            Join our fleet and start earning by providing premium airport transfers to tourists in Sri Lanka.
+          <h2 className="text-3xl font-bold text-slate-900 tracking-tight">Driver Registration</h2>
+          <p className="mt-2 text-sm text-slate-500 font-medium max-w-lg mx-auto">
+            Complete the form below to register as a driver. Your application will be reviewed by an admin before you can start accepting rides.
           </p>
         </div>
         
-        <form className="mt-8 space-y-6" onSubmit={handleSignup}>
+        <form className="mt-8 space-y-4" onSubmit={handleSignup}>
           
-          <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 mb-6">
-            <p className="text-sm text-blue-800 font-medium flex gap-2">
-              <span className="shrink-0 text-xl">ℹ️</span> 
-              <span>New driver accounts require admin approval before you can start accepting rides. Please provide accurate details.</span>
-            </p>
-          </div>
-
+          <SectionTitle title="Account Setup" />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Personal Details */}
-            <div className="space-y-5 md:col-span-2">
-              <h3 className="text-lg font-bold text-slate-800 border-b border-slate-100 pb-2">Personal Information</h3>
-            </div>
+            <InputField label="Full Name" name="name" required placeholder="John Doe" formData={formData} handleChange={handleChange} />
+            <InputField label="Email Address" name="email" type="email" required placeholder="driver@example.com" formData={formData} handleChange={handleChange} />
+            <InputField label="Password" name="password" type="password" required placeholder="••••••••" formData={formData} handleChange={handleChange} />
+            <InputField label="Phone Number" name="phoneNumber" required placeholder="+94 77 123 4567" formData={formData} handleChange={handleChange} />
+          </div>
 
+          <SectionTitle title="Driver Identity" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <InputField label="NIC or Passport Number" name="nicOrPassportNumber" required formData={formData} handleChange={handleChange} />
+            <InputField label="Date of Birth" name="dateOfBirth" type="date" required formData={formData} handleChange={handleChange} />
+            <InputField label="Home District" name="homeDistrict" required formData={formData} handleChange={handleChange} />
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Full Name</label>
-              <div className="relative">
-                <User size={18} className="absolute left-3 top-3.5 text-slate-400" />
-                <input type="text" name="name" required value={formData.name} onChange={handleChange} className="w-full pl-10 p-3 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white transition-all text-slate-800" placeholder="John Doe" />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Phone Number</label>
-              <div className="relative">
-                <span className="absolute left-3 top-3.5 text-slate-400 text-sm font-bold">+94</span>
-                <input type="text" name="phoneNumber" required value={formData.phoneNumber} onChange={handleChange} className="w-full pl-11 p-3 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white transition-all text-slate-800" placeholder="77 123 4567" />
-              </div>
-            </div>
-
-            {/* Account Details */}
-            <div className="space-y-5 md:col-span-2 mt-4">
-              <h3 className="text-lg font-bold text-slate-800 border-b border-slate-100 pb-2">Account Setup</h3>
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Email Address</label>
-              <div className="relative">
-                <Mail size={18} className="absolute left-3 top-3.5 text-slate-400" />
-                <input type="email" name="email" required value={formData.email} onChange={handleChange} className="w-full pl-10 p-3 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white transition-all text-slate-800" placeholder="driver@example.com" />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Password</label>
-              <div className="relative">
-                <Lock size={18} className="absolute left-3 top-3.5 text-slate-400" />
-                <input type="password" name="password" required value={formData.password} onChange={handleChange} className="w-full pl-10 p-3 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white transition-all text-slate-800" placeholder="••••••••" />
-              </div>
-            </div>
-
-            {/* Vehicle & License Details */}
-            <div className="space-y-5 md:col-span-2 mt-4">
-              <h3 className="text-lg font-bold text-slate-800 border-b border-slate-100 pb-2">Vehicle & License</h3>
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Driving License Number</label>
-              <div className="relative">
-                <FileText size={18} className="absolute left-3 top-3.5 text-slate-400" />
-                <input type="text" name="licenseNumber" required value={formData.licenseNumber} onChange={handleChange} className="w-full pl-10 p-3 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white transition-all text-slate-800" placeholder="e.g. B1234567" />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Vehicle Registration Number</label>
-              <div className="relative">
-                <Car size={18} className="absolute left-3 top-3.5 text-slate-400" />
-                <input type="text" name="vehicleRegistration" required value={formData.vehicleRegistration} onChange={handleChange} className="w-full pl-10 p-3 border border-slate-200 rounded-xl bg-slate-50 focus:bg-white transition-all text-slate-800" placeholder="e.g. CAA-1234 or WP CBA-5678" />
-              </div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Profile Photo</label>
+              <input type="file" className="w-full p-2 border border-slate-300 rounded-xl bg-white text-sm" accept="image/*" />
+              <p className="text-xs text-slate-500 mt-1">Please upload a clear headshot.</p>
             </div>
           </div>
 
-          {error && <div className="text-red-500 text-sm font-semibold text-center bg-red-50 py-3 rounded-lg border border-red-100">{error}</div>}
+          <SectionTitle title="Driving Licence" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <InputField label="Licence Number" name="licenseNumber" required formData={formData} handleChange={handleChange} />
+            <InputField label="Vehicle Classes (e.g. B, B1, C)" name="licenseClasses" required formData={formData} handleChange={handleChange} />
+            <InputField label="Licence Expiry Date" name="licenseExpiryDate" type="date" required formData={formData} handleChange={handleChange} />
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Licence Images</label>
+              <input type="file" multiple className="w-full p-2 border border-slate-300 rounded-xl bg-white text-sm" accept="image/*" />
+            </div>
+          </div>
 
-          <div className="pt-4">
+          <SectionTitle title="Vehicle Details" />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <InputField label="Registration Number" name="vehicleRegistration" required placeholder="WP CAA-1234" formData={formData} handleChange={handleChange} />
+            <InputField label="Make" name="vehicleMake" required placeholder="Toyota" formData={formData} handleChange={handleChange} />
+            <InputField label="Model" name="vehicleModel" required placeholder="Prius" formData={formData} handleChange={handleChange} />
+            <InputField label="Year" name="vehicleYear" type="number" required placeholder="2018" formData={formData} handleChange={handleChange} />
+            <InputField label="Passenger Seats" name="passengerSeats" type="number" required formData={formData} handleChange={handleChange} />
+            <InputField label="Luggage Capacity (Bags)" name="luggageCapacity" type="number" required formData={formData} handleChange={handleChange} />
+          </div>
+          <div className="mt-6">
+            <label className="block text-sm font-semibold text-slate-700 mb-2">Vehicle Photos (Interior & Exterior)</label>
+            <input type="file" multiple className="w-full p-2 border border-slate-300 rounded-xl bg-white text-sm" accept="image/*" />
+          </div>
+
+          <SectionTitle title="Vehicle Documents" />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <InputField label="Insurance Policy Number" name="insurancePolicyNumber" required formData={formData} handleChange={handleChange} />
+            <InputField label="Insurance Expiry Date" name="insuranceExpiryDate" type="date" required formData={formData} handleChange={handleChange} />
+            <InputField label="Revenue Licence Expiry" name="revenueLicenseExpiryDate" type="date" required formData={formData} handleChange={handleChange} />
+          </div>
+
+          <SectionTitle title="Tour Service Capabilities" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <InputField label="Languages Spoken" name="languagesSpoken" placeholder="English, Sinhala" formData={formData} handleChange={handleChange} />
+            <InputField label="Areas Served" name="areasServed" placeholder="Colombo, Kandy, Galle" formData={formData} handleChange={handleChange} />
+            <SelectField label="Airport Pickup Availability" name="airportPickupAvailable" options={[{label: "Yes", value: "true"}, {label: "No", value: "false"}]} formData={formData} handleChange={handleChange} />
+            <SelectField label="Multi-day Trip Availability" name="multiDayTripAvailable" options={[{label: "Yes", value: "true"}, {label: "No", value: "false"}]} formData={formData} handleChange={handleChange} />
+            <SelectField label="Guided Tours Offered" name="guidedToursAvailable" options={[{label: "Yes", value: "true"}, {label: "No", value: "false"}]} formData={formData} handleChange={handleChange} />
+          </div>
+
+          <SectionTitle title="Safety and Operations" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <InputField label="Emergency Contact Name" name="emergencyContactName" required formData={formData} handleChange={handleChange} />
+            <InputField label="Emergency Contact Number" name="emergencyContactNumber" required formData={formData} handleChange={handleChange} />
+            <SelectField label="Child Seat Available" name="childSeatAvailable" options={[{label: "Yes", value: "true"}, {label: "No", value: "false"}]} formData={formData} handleChange={handleChange} />
+            <SelectField label="Air Conditioning" name="airConditioning" options={[{label: "Yes, fully functional", value: "true"}, {label: "No", value: "false"}]} formData={formData} handleChange={handleChange} />
+            <div className="md:col-span-2">
+              <InputField label="Availability Schedule" name="availabilitySchedule" placeholder="E.g. Mon-Fri 8AM-8PM, Weekends flexible" formData={formData} handleChange={handleChange} />
+            </div>
+          </div>
+
+          <SectionTitle title="Payment Details" />
+          <p className="text-sm text-slate-500 mb-4">Bank account details for receiving payouts.</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <InputField label="Bank Name" name="bankName" required formData={formData} handleChange={handleChange} />
+            <InputField label="Branch Name" name="bankBranchName" required formData={formData} handleChange={handleChange} />
+            <InputField label="Account Name" name="bankAccountName" required formData={formData} handleChange={handleChange} />
+            <InputField label="Account Number" name="bankAccountNumber" required formData={formData} handleChange={handleChange} />
+          </div>
+
+          {error && <div className="text-red-500 text-sm font-semibold text-center bg-red-50 py-3 rounded-lg border border-red-100 mt-8">{error}</div>}
+
+          <div className="pt-8">
             <button
               type="submit"
               disabled={loading}
-              className="group relative w-full flex justify-center items-center gap-2 py-4 px-4 border border-transparent text-lg font-bold rounded-xl text-white bg-slate-900 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-900 transition-all shadow-md disabled:bg-slate-300 disabled:shadow-none"
+              className="w-full flex justify-center items-center gap-2 py-4 px-4 text-lg font-bold rounded-xl text-white bg-slate-900 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900 transition-all shadow-md disabled:bg-slate-300"
             >
-              {loading ? (
-                "Submitting Application..."
-              ) : (
-                <>
-                  Submit Application
-                  <ArrowRight size={20} className="absolute right-6 opacity-0 group-hover:opacity-100 transition-opacity translate-x-[-10px] group-hover:translate-x-0" />
-                </>
-              )}
+              {loading ? "Submitting Application..." : "Submit Application"}
             </button>
           </div>
           

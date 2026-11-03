@@ -17,7 +17,7 @@ export interface IPassengerDetails {
   nationality: string;
   country: string;
   email: string;
-  whatsappNumber: string;
+  whatsappNumber?: string;
   alternativePhoneNumber?: string;
   adults: number;
   children: number;
@@ -25,13 +25,120 @@ export interface IPassengerDetails {
   childSeatRequired: boolean;
   meetAndGreetRequired: boolean;
   specialRequests?: string;
+  hasWhatsApp?: boolean;
+}
+
+
+export interface IArrivalCandidate {
+  firstDetectedAt: Date;
+  lastDetectedAt: Date;
+  sampleCount: number;
+  lastDistanceMetres: number;
+  lastAccuracyMetres?: number;
 }
 
 export interface IDriverLocation {
   lat: number;
   lng: number;
   accuracy?: number;
+  capturedAt?: Date;
+  receivedAt?: Date;
   updatedAt: Date;
+}
+
+export interface ICustomTripPlace {
+  name?: string;
+  lat?: number;
+  lng?: number;
+  activityTime?: string;
+  visited?: boolean;
+  visitedAt?: Date;
+}
+
+export interface ICustomTripOvernight {
+  city?: string;
+  hotel?: string;
+  lat?: number;
+  lng?: number;
+  visited?: boolean;
+  visitedAt?: Date;
+}
+
+export interface ICustomTripDay {
+  dayNumber: number;
+  date: Date;
+  startingLocation?: {
+    address?: string;
+    lat?: number;
+    lng?: number;
+  };
+  departureTime?: string;
+  placesToVisit: ICustomTripPlace[];
+  overnightLocation?: ICustomTripOvernight;
+  notes?: string;
+  distanceKm?: number;
+  drivingTimeMins?: number;
+}
+
+
+export interface IPickMePricingSnapshot {
+  baseFare: number;
+  ratePerKm: number;
+  minimumFare: number;
+  distanceKm: number;
+  durationMins: number;
+  estimatedFare: number;
+  calculatedAt: Date;
+}
+
+export interface IPickMeStop {
+  _id?: mongoose.Types.ObjectId | string;
+  name?: string;
+  address: string;
+  lat: number;
+  lng: number;
+  stopOrder: number;
+  visited?: boolean;
+  visitedAt?: Date;
+  notes?: string;
+}
+
+export interface IPickMeDetails {
+  pickupInstructions?: string;
+  intermediateStops?: IPickMeStop[];
+  isPickMe: boolean;
+  vehicleCategory: "Bike" | "Three-wheeler" | "Car" | "Mini Van" | "Van" | "Lorry" | string;
+  goodsDescription?: string;
+  baseFare: number;
+  ratePerKm: number;
+  minimumFare: number;
+  estimatedFare: number;
+  pricingSnapshot: IPickMePricingSnapshot;
+  rideNow: boolean;
+}
+
+export interface ICustomTripDetails {
+  isCustomTrip?: boolean;
+  startDate?: Date;
+  endDate?: Date;
+  budget?: number;
+  budgetCurrency?: "LKR" | "USD";
+  budgetCovers?: "Transport only" | "Entire trip";
+  budgetFlexibility?: "Fixed maximum" | "Negotiable";
+  budgetNotes?: string;
+  pickupFlightNumber?: string;
+  dropoffFlightNumber?: string;
+  dropoffLocation?: {
+    address?: string;
+    lat?: number;
+    lng?: number;
+    visited?: boolean;
+    visitedAt?: Date;
+  };
+  dropoffTime?: string;
+  itinerary?: ICustomTripDay[];
+  confirmedAmount?: number;
+  confirmedCurrency?: "LKR" | "USD" | "EUR" | "GBP";
 }
 
 export interface IBooking extends Document {
@@ -42,6 +149,8 @@ export interface IBooking extends Document {
   pickupAddress?: string;
   pickupLat?: number;
   pickupLng?: number;
+  pickupInstructions?: string;
+  intermediateStops?: IPickMeStop[];
   isPackageBooking?: boolean;
   packageId?: mongoose.Types.ObjectId;
   packageEnquiryId?: mongoose.Types.ObjectId;
@@ -59,10 +168,17 @@ export interface IBooking extends Document {
   passengerDetails: IPassengerDetails;
   fareBreakdown: IFareBreakdown;
   paymentMethod: string;
-  paymentStatus: "PENDING" | "PAID" | "FAILED" | "REFUNDED";
+  paymentStatus: "PENDING" | "VERIFYING_PAYMENT" | "PAID" | "FAILED" | "REFUNDED";
+  bookingType?: "AIRPORT_TRANSFER" | "CUSTOM_TRIP" | "LOCAL_RIDE";
+  pickMeDetails?: IPickMeDetails;
+  customTripDetails?: ICustomTripDetails;
   status:
+    | "DRAFT"
+    | "PENDING_APPROVAL"
+    | "NEEDS_REVISION"
     | "PENDING"
     | "AWAITING_PAYMENT"
+    | "PENDING_ADMIN_CONFIRMATION"
     | "CONFIRMED"
     | "DRIVER_ASSIGNED"
     | "DRIVER_EN_ROUTE"
@@ -72,6 +188,29 @@ export interface IBooking extends Document {
     | "COMPLETED"
     | "CANCELLED"
     | "REFUNDED";
+  arrivedAt?: Date;
+  arrivalSource?: "GPS" | "MANUAL";
+  arrivalCandidate?: IArrivalCandidate;
+  completedAt?: Date;
+  assignedAt?: Date;
+  offeredDriverIds?: mongoose.Types.ObjectId[];
+  rejectedDriverIds?: mongoose.Types.ObjectId[];
+  dispatchStatus?: "SEARCHING" | "OFFERED" | "ACCEPTED" | "EXPIRED" | "CANCELLED";
+  dispatchExpiresAt?: Date;
+  approvedBy?: mongoose.Types.ObjectId;
+  approvedAt?: Date;
+  cancelledAt?: Date;
+  cancelledBy?: {
+    userId?: mongoose.Types.ObjectId;
+    role: "TOURIST" | "DRIVER" | "ADMIN";
+    name?: string;
+  };
+  cancellationReasonCode?: string;
+  cancellationReasonText?: string;
+  cancellationComments?: string;
+  statusBeforeCancellation?: string;
+  refundReviewStatus?: "NOT_APPLICABLE" | "PENDING_REVIEW" | "REFUNDED" | "RESOLVED";
+  adminNotes?: Record<string, string>;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -97,7 +236,7 @@ const PassengerDetailsSchema = new Schema<IPassengerDetails>(
     nationality: { type: String, required: true },
     country: { type: String, required: true },
     email: { type: String, required: true },
-    whatsappNumber: { type: String, required: true },
+    whatsappNumber: { type: String, required: false },
     alternativePhoneNumber: { type: String },
     adults: { type: Number, required: true },
     children: { type: Number, required: true },
@@ -105,6 +244,19 @@ const PassengerDetailsSchema = new Schema<IPassengerDetails>(
     childSeatRequired: { type: Boolean, default: false },
     meetAndGreetRequired: { type: Boolean, default: false },
     specialRequests: { type: String },
+    hasWhatsApp: { type: Boolean, default: false },
+  },
+  { _id: false }
+);
+
+
+const ArrivalCandidateSchema = new Schema<IArrivalCandidate>(
+  {
+    firstDetectedAt: { type: Date, required: true },
+    lastDetectedAt: { type: Date, required: true },
+    sampleCount: { type: Number, required: true, default: 1 },
+    lastDistanceMetres: { type: Number, required: true },
+    lastAccuracyMetres: { type: Number },
   },
   { _id: false }
 );
@@ -113,7 +265,63 @@ const DriverLocationSchema = new Schema<IDriverLocation>({
   lat: { type: Number, required: true },
   lng: { type: Number, required: true },
   accuracy: { type: Number },
+  capturedAt: { type: Date },
+  receivedAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, required: true, default: Date.now }
+}, { _id: false });
+
+const CustomTripDaySchema = new Schema({
+  dayNumber: { type: Number, required: true },
+  date: { type: Date, required: true },
+  startingLocation: {
+    address: { type: String },
+    lat: { type: Number },
+    lng: { type: Number }
+  },
+  departureTime: { type: String },
+  placesToVisit: [{
+    name: { type: String },
+    lat: { type: Number },
+    lng: { type: Number },
+    activityTime: { type: String },
+    visited: { type: Boolean, default: false },
+    visitedAt: { type: Date }
+  }],
+  overnightLocation: {
+    city: { type: String },
+    hotel: { type: String },
+    lat: { type: Number },
+    lng: { type: Number },
+    visited: { type: Boolean, default: false },
+    visitedAt: { type: Date }
+  },
+  notes: { type: String },
+  distanceKm: { type: Number },
+  drivingTimeMins: { type: Number }
+}, { _id: false });
+
+const CustomTripDetailsSchema = new Schema({
+  isCustomTrip: { type: Boolean, default: false },
+  startDate: { type: Date },
+  endDate: { type: Date },
+  budget: { type: Number },
+  budgetCurrency: { type: String, enum: ["LKR", "USD"], default: "USD" },
+  budgetCovers: { type: String, enum: ["Transport only", "Entire trip"], default: "Transport only" },
+  budgetFlexibility: { type: String, enum: ["Fixed maximum", "Negotiable"], default: "Negotiable" },
+  budgetNotes: { type: String },
+  pickupFlightNumber: { type: String },
+  dropoffFlightNumber: { type: String },
+  dropoffLocation: {
+    address: { type: String },
+    lat: { type: Number },
+    lng: { type: Number },
+    visited: { type: Boolean, default: false },
+    visitedAt: { type: Date }
+  },
+  dropoffTime: { type: String },
+  itinerary: [CustomTripDaySchema],
+  confirmedAmount: { type: Number },
+  confirmedCurrency: { type: String, enum: ["LKR", "USD", "EUR", "GBP"], default: "USD" }
 }, { _id: false });
 
 const BookingSchema: Schema = new Schema(
@@ -137,22 +345,85 @@ const BookingSchema: Schema = new Schema(
     flightNumber: { type: String, required: false },
     vehicleTypeId: { type: Schema.Types.ObjectId, ref: "VehicleType", required: false },
     driverId: { type: Schema.Types.ObjectId, ref: "User" },
+    assignedAt: { type: Date },
+    offeredDriverIds: [{ type: Schema.Types.ObjectId, ref: "User" }],
+    rejectedDriverIds: [{ type: Schema.Types.ObjectId, ref: "User" }],
+    dispatchStatus: {
+      type: String,
+      enum: ["SEARCHING", "OFFERED", "ACCEPTED", "EXPIRED", "CANCELLED"],
+      default: "SEARCHING",
+    },
+    dispatchExpiresAt: { type: Date },
     driverLocation: { type: DriverLocationSchema },
     distanceKm: { type: Number, required: false },
     durationMins: { type: Number, required: false },
-    passengerDetails: { type: PassengerDetailsSchema, required: true },
-    fareBreakdown: { type: FareBreakdownSchema, required: true },
-    paymentMethod: { type: String, required: true },
+    passengerDetails: { type: PassengerDetailsSchema, required: false }, // Made optional for drafts
+    fareBreakdown: { type: FareBreakdownSchema, required: false }, // Made optional for drafts
+    paymentMethod: { type: String, required: false }, // Made optional for drafts
+    bookingType: {
+      type: String,
+      enum: ["AIRPORT_TRANSFER", "CUSTOM_TRIP", "LOCAL_RIDE"],
+      default: "AIRPORT_TRANSFER",
+    },
+    pickupInstructions: { type: String },
+    intermediateStops: [
+      {
+        name: { type: String },
+        address: { type: String, required: true },
+        lat: { type: Number, required: true },
+        lng: { type: Number, required: true },
+        stopOrder: { type: Number, required: true },
+        visited: { type: Boolean, default: false },
+        visitedAt: { type: Date },
+        notes: { type: String },
+      },
+    ],
+    pickMeDetails: {
+      isPickMe: { type: Boolean, default: false },
+      vehicleCategory: { type: String },
+      goodsDescription: { type: String },
+      pickupInstructions: { type: String },
+      intermediateStops: [
+        {
+          name: { type: String },
+          address: { type: String, required: true },
+          lat: { type: Number, required: true },
+          lng: { type: Number, required: true },
+          stopOrder: { type: Number, required: true },
+          visited: { type: Boolean, default: false },
+          visitedAt: { type: Date },
+          notes: { type: String },
+        },
+      ],
+      baseFare: { type: Number },
+      ratePerKm: { type: Number },
+      minimumFare: { type: Number },
+      estimatedFare: { type: Number },
+      pricingSnapshot: { type: Schema.Types.Mixed },
+      rideNow: { type: Boolean, default: true },
+    },
+    customTripDetails: { type: CustomTripDetailsSchema },
+    arrivedAt: { type: Date },
+    arrivalSource: { type: String, enum: ["GPS", "MANUAL"] },
+    arrivalCandidate: { type: ArrivalCandidateSchema },
+    completedAt: { type: Date },
+    approvedBy: { type: Schema.Types.ObjectId, ref: "User" },
+    approvedAt: { type: Date },
+    adminNotes: { type: Schema.Types.Mixed },
     paymentStatus: {
       type: String,
-      enum: ["PENDING", "PAID", "FAILED", "REFUNDED"],
+      enum: ["PENDING", "VERIFYING_PAYMENT", "PAID", "FAILED", "REFUNDED"],
       default: "PENDING",
     },
     status: {
       type: String,
       enum: [
+        "DRAFT",
+        "PENDING_APPROVAL",
+        "NEEDS_REVISION",
         "PENDING",
         "AWAITING_PAYMENT",
+        "PENDING_ADMIN_CONFIRMATION",
         "CONFIRMED",
         "DRIVER_ASSIGNED",
         "DRIVER_EN_ROUTE",
@@ -164,6 +435,21 @@ const BookingSchema: Schema = new Schema(
         "REFUNDED",
       ],
       default: "PENDING",
+    },
+    cancelledAt: { type: Date },
+    cancelledBy: {
+      userId: { type: Schema.Types.ObjectId, ref: "User" },
+      role: { type: String, enum: ["TOURIST", "DRIVER", "ADMIN"] },
+      name: { type: String },
+    },
+    cancellationReasonCode: { type: String },
+    cancellationReasonText: { type: String },
+    cancellationComments: { type: String },
+    statusBeforeCancellation: { type: String },
+    refundReviewStatus: {
+      type: String,
+      enum: ["NOT_APPLICABLE", "PENDING_REVIEW", "REFUNDED", "RESOLVED"],
+      default: "NOT_APPLICABLE",
     },
   },
   { timestamps: true }

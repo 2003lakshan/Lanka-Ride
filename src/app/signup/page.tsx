@@ -1,10 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Plane, Mail, Lock, User, ArrowRight } from "lucide-react";
+import { Plane, Mail, Lock, User, ArrowRight, AlertCircle, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
+
+function getSafeRelativeUrl(url: string | null): string | null {
+  if (!url) return null;
+  // Prevent open redirects: must start with / and not // or /\\
+  if (url.startsWith("/") && !url.startsWith("//") && !url.startsWith("/\\")) {
+    return url;
+  }
+  return null;
+}
 
 export default function SignupPage() {
   const [name, setName] = useState("");
@@ -12,34 +21,49 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [callbackUrl, setCallbackUrl] = useState<string | null>(null);
   const router = useRouter();
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const sp = new URLSearchParams(window.location.search);
+        const cb = sp.get("callbackUrl");
+        if (cb) {
+          setCallbackUrl(cb);
+        }
+      } catch {
+        // Ignore URL parsing errors
+      }
+    }
+  }, []);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
-    
+
     try {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name,
-          email,
+          name: name.trim(),
+          email: email.trim(),
           password,
-          role: "TOURIST", // Default sign up is for tourists
+          role: "TOURIST", // Default sign up is for tourists / riders
         }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || "Failed to sign up");
+        throw new Error(data.error || "Failed to create account.");
       }
 
       // Automatically sign in after sign up
       const signInResult = await signIn("credentials", {
-        email,
+        email: email.trim(),
         password,
         role: "RIDER",
         redirect: false,
@@ -49,17 +73,20 @@ export default function SignupPage() {
         throw new Error(signInResult.error);
       }
 
-      router.push("/my-bookings");
-      router.refresh();
+      const safeTarget = getSafeRelativeUrl(callbackUrl) || "/my-bookings";
+      window.location.href = safeTarget;
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || "An unexpected error occurred during signup.");
       setLoading(false);
     }
   };
 
+  const loginLink = callbackUrl
+    ? `/login?callbackUrl=${encodeURIComponent(callbackUrl)}`
+    : "/login";
+
   return (
     <div className="min-h-[calc(100vh-80px)] bg-slate-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
-      
       {/* Background Decorative Elements */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0 pointer-events-none">
         <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] rounded-full bg-blue-400/10 blur-3xl"></div>
@@ -73,10 +100,10 @@ export default function SignupPage() {
           </div>
           <h2 className="text-3xl font-bold text-slate-900 tracking-tight">Create an account</h2>
           <p className="mt-2 text-sm text-slate-500 font-medium">
-            Join Lanka Airport Ride to book and track your transfers easily.
+            Join Lanka Airport Ride to book and track your local rides and airport transfers.
           </p>
         </div>
-        
+
         <form className="mt-8 space-y-6" onSubmit={handleSignup}>
           <div className="space-y-5">
             <div>
@@ -112,7 +139,7 @@ export default function SignupPage() {
                 />
               </div>
             </div>
-            
+
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2">Password</label>
               <div className="relative">
@@ -131,29 +158,43 @@ export default function SignupPage() {
             </div>
           </div>
 
-          {error && <div className="text-red-500 text-sm font-semibold text-center bg-red-50 py-2 rounded-lg">{error}</div>}
+          {error && (
+            <div
+              role="alert"
+              className="text-red-600 text-sm font-semibold bg-red-50 border border-red-200 py-3 px-4 rounded-xl flex items-center gap-2"
+            >
+              <AlertCircle size={18} className="shrink-0 text-red-500" />
+              <span>{error}</span>
+            </div>
+          )}
 
           <div>
             <button
               type="submit"
               disabled={loading}
-              className="group relative w-full flex justify-center items-center gap-2 py-3.5 px-4 border border-transparent text-sm font-bold rounded-xl text-white bg-slate-900 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-900 transition-all shadow-md disabled:bg-slate-300 disabled:shadow-none"
+              className="group relative w-full flex justify-center items-center gap-2 py-3.5 px-4 border border-transparent text-sm font-bold rounded-xl text-white bg-slate-900 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-900 transition-all shadow-md disabled:bg-slate-300 disabled:shadow-none min-h-[48px]"
             >
               {loading ? (
-                "Creating account..."
+                <>
+                  <Loader2 size={18} className="animate-spin" />
+                  <span>Creating account...</span>
+                </>
               ) : (
                 <>
-                  Create Account
-                  <ArrowRight size={16} className="absolute right-4 opacity-0 group-hover:opacity-100 transition-opacity translate-x-[-10px] group-hover:translate-x-0" />
+                  <span>Create Account</span>
+                  <ArrowRight
+                    size={16}
+                    className="absolute right-4 opacity-0 group-hover:opacity-100 transition-opacity translate-x-[-10px] group-hover:translate-x-0"
+                  />
                 </>
               )}
             </button>
           </div>
-          
+
           <div className="text-center mt-6">
             <p className="text-sm text-slate-600">
               Already have an account?{" "}
-              <Link href="/login" className="font-semibold text-blue-600 hover:text-blue-500 transition-colors">
+              <Link href={loginLink} className="font-semibold text-blue-600 hover:text-blue-500 transition-colors">
                 Log in
               </Link>
             </p>
@@ -161,7 +202,10 @@ export default function SignupPage() {
           <div className="text-center mt-2">
             <p className="text-sm text-slate-600">
               Want to drive for us?{" "}
-              <Link href="/driver/register" className="font-semibold text-blue-600 hover:text-blue-500 transition-colors">
+              <Link
+                href="/driver/register"
+                className="font-semibold text-blue-600 hover:text-blue-500 transition-colors"
+              >
                 Apply as a Driver
               </Link>
             </p>

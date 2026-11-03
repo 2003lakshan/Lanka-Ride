@@ -7,12 +7,28 @@ export interface IUser extends Document {
   role: "TOURIST" | "DRIVER" | "ADMIN";
   phoneNumber?: string;
   nationality?: string;
+  profilePhoto?: string;
+  preferredLanguage?: string;
   // Driver specific fields
   licenseNumber?: string;
   vehicleRegistration?: string;
+  vehicleCategory?: "Bike" | "Three-wheeler" | "Car" | "Mini Van" | "Van" | "Lorry" | string;
+  driverDetails?: any;
   isApproved?: boolean;
+  isOnline?: boolean;
+  locationUpdatedAt?: Date;
   currentLat?: number;
   currentLng?: number;
+  resetPasswordToken?: string;
+  resetPasswordExpires?: Date;
+  resetPasswordOtpHash?: string;
+  resetPasswordOtpExpires?: Date;
+  resetPasswordOtpAttempts?: number;
+  resetPasswordOtpLastSent?: Date;
+  resetPasswordAuthTokenHash?: string;
+  resetPasswordAuthTokenExpires?: Date;
+  resetPasswordAuthTokenConsumed?: boolean;
+  sessionVersion: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -29,12 +45,28 @@ const UserSchema: Schema = new Schema(
     },
     phoneNumber: { type: String },
     nationality: { type: String },
+    profilePhoto: { type: String },
+    preferredLanguage: { type: String, default: "English" },
     // Driver specific fields
     licenseNumber: { type: String },
     vehicleRegistration: { type: String },
+    vehicleCategory: { type: String, enum: ["Bike", "Three-wheeler", "Car", "Mini Van", "Van", "Lorry"] },
+    driverDetails: { type: Schema.Types.Mixed },
     isApproved: { type: Boolean, default: false },
+    isOnline: { type: Boolean, default: false },
+    locationUpdatedAt: { type: Date },
     currentLat: { type: Number },
     currentLng: { type: Number },
+    resetPasswordToken: { type: String },
+    resetPasswordExpires: { type: Date },
+    resetPasswordOtpHash: { type: String },
+    resetPasswordOtpExpires: { type: Date },
+    resetPasswordOtpAttempts: { type: Number, default: 0 },
+    resetPasswordOtpLastSent: { type: Date },
+    resetPasswordAuthTokenHash: { type: String },
+    resetPasswordAuthTokenExpires: { type: Date },
+    resetPasswordAuthTokenConsumed: { type: Boolean, default: false },
+    sessionVersion: { type: Number, default: 0 },
   },
   { timestamps: true }
 );

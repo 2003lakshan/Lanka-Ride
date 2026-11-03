@@ -1,15 +1,13 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { importLibrary, setOptions } from "@googlemaps/js-api-loader";
 import { MapPin, Search, Navigation, AlertCircle, Loader2 } from "lucide-react";
 
 export interface LocationState {
   address: string;
   lat: number;
   lng: number;
-  placeId?: string;
-  source: 'google' | 'local' | 'gps';
+  source: 'google' | 'local' | 'gps' | 'custom';
 }
 
 interface PlacesAutocompleteInputProps {
@@ -189,37 +187,12 @@ export default function PlacesAutocompleteInput({
   const [isFocused, setIsFocused] = useState(false);
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [autocompleteService, setAutocompleteService] = useState<google.maps.places.AutocompleteService | null>(null);
-  const [placesService, setPlacesService] = useState<google.maps.places.PlacesService | null>(null);
   const [serviceError, setServiceError] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
   
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-
-  // Load Google Maps script
-  useEffect(() => {
-    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-    if (!apiKey) {
-      setServiceError("Google Maps API key is missing");
-      return;
-    }
-
-    setOptions({
-      key: apiKey,
-    });
-
-    importLibrary("places").then(() => {
-      setAutocompleteService(new google.maps.places.AutocompleteService());
-      
-      // Dummy element for PlacesService (it requires an HTML element)
-      const dummyElement = document.createElement('div');
-      setPlacesService(new google.maps.places.PlacesService(dummyElement));
-    }).catch((err: any) => {
-      console.error("Error loading Google Maps", err);
-      setServiceError("Failed to load map services.");
-    });
-  }, []);
+  // No external places API required. Using local database.
 
   // Sync internal query with value
   useEffect(() => {
@@ -246,7 +219,7 @@ export default function PlacesAutocompleteInput({
   useEffect(() => {
     if (!isFocused) return;
     
-    if (!query.trim()) {
+    if (!query || !query.trim()) {
       // Show default top places when empty
       setSuggestions(LOCAL_PLACES.slice(0, 8));
       setShowDropdown(true);
@@ -266,36 +239,9 @@ export default function PlacesAutocompleteInput({
       description: p.address
     }));
 
-    // 2. Fetch Google suggestions
-    if (autocompleteService && query.trim().length > 1) {
-      autocompleteService.getPlacePredictions({
-        input: query,
-        componentRestrictions: { country: "lk" },
-        types: ["establishment", "geocode"]
-      }, (predictions, status) => {
-        setLoading(false);
-        if (status === google.maps.places.PlacesServiceStatus.OK && predictions) {
-          const googleMatches = predictions.map(p => ({
-            description: p.description,
-            placeId: p.place_id,
-            source: 'google'
-          }));
-          
-          // Combine and deduplicate (rudimentary dedupe based on description)
-          const combined = [...localMatches, ...googleMatches];
-          const unique = Array.from(new Map(combined.map(item => [item.description, item])).values());
-          
-          setSuggestions(unique.slice(0, 6)); // Limit to 6 suggestions
-        } else {
-          setSuggestions(localMatches.slice(0, 6));
-        }
-      });
-    } else {
-      setSuggestions(localMatches.slice(0, 6));
-      setLoading(false);
-    }
-
-  }, [query, isFocused, autocompleteService]);
+    setSuggestions(localMatches.slice(0, 6));
+    setLoading(false);
+  }, [query, isFocused]);
 
   const handleSelect = (suggestion: any) => {
     setQuery(suggestion.description);
@@ -308,31 +254,12 @@ export default function PlacesAutocompleteInput({
         lng: suggestion.lng,
         source: 'local'
       });
-    } else if (suggestion.source === 'google' && placesService) {
-      // Fetch details to get coordinates
-      placesService.getDetails({
-        placeId: suggestion.placeId,
-        fields: ['geometry', 'name', 'formatted_address']
-      }, (place, status) => {
-        if (status === google.maps.places.PlacesServiceStatus.OK && place && place.geometry && place.geometry.location) {
-          const lat = place.geometry.location.lat();
-          const lng = place.geometry.location.lng();
-          
-          if (lat === 0 && lng === 0) {
-             setServiceError("Invalid location coordinates returned.");
-             return;
-          }
-
-          onChange({
-            address: suggestion.description,
-            lat: lat,
-            lng: lng,
-            placeId: suggestion.placeId,
-            source: 'google'
-          });
-        } else {
-           setServiceError("Failed to fetch accurate coordinates for this location.");
-        }
+    } else {
+      onChange({
+        address: suggestion.description,
+        lat: suggestion.lat || 0,
+        lng: suggestion.lng || 0,
+        source: 'custom'
       });
     }
   };
@@ -372,6 +299,26 @@ export default function PlacesAutocompleteInput({
     }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && query.trim()) {
+      e.preventDefault();
+      
+      // Select exact match if exists
+      const match = suggestions.find(s => s.description.toLowerCase() === query.trim().toLowerCase());
+      if (match) {
+        handleSelect(match);
+      } else {
+        // Treat as custom typed location
+        handleSelect({
+          description: query.trim(),
+          source: 'custom',
+          lat: 0,
+          lng: 0
+        });
+      }
+    }
+  };
+
   return (
     <div className="relative group w-full">
       <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none z-10">
@@ -381,9 +328,17 @@ export default function PlacesAutocompleteInput({
         ref={inputRef}
         type="text" 
         placeholder={placeholder} 
-        value={query}
+        value={query || ""}
         onChange={handleChange}
+        onKeyDown={handleKeyDown}
         onFocus={() => setIsFocused(true)}
+        onBlur={() => {
+          setTimeout(() => {
+            if (query && !value) {
+              handleSelect({ description: query, source: 'custom', lat: 0, lng: 0 });
+            }
+          }, 200);
+        }}
         className={`block w-full pl-10 pr-10 py-4 border-2 ${!value && query ? 'border-amber-300' : 'border-slate-200'} rounded-2xl focus:ring-0 focus:border-blue-500 bg-slate-50 hover:bg-white text-slate-800 font-bold transition-all shadow-inner relative z-0`}
       />
       

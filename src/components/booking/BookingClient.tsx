@@ -27,7 +27,7 @@ export default function BookingClient({ initialAirports, initialVehicles }: Book
     source: 'local'
   } : null);
   const [destination, setDestination] = useState<LocationState | null>(null);
-  const [routeInfo, setRouteInfo] = useState<{ distanceKm: number; durationMins: number; polyline?: string } | null>(null);
+  const [routeInfo, setRouteInfo] = useState<{ distanceKm: number; durationMins: number; polyline?: string; status?: string } | null>(null);
   const [loadingRoute, setLoadingRoute] = useState(false);
   const [selectedVehicle, setSelectedVehicle] = useState<string | null>(null);
   const [showPassengerForm, setShowPassengerForm] = useState(false);
@@ -275,12 +275,16 @@ export default function BookingClient({ initialAirports, initialVehicles }: Book
               <div className="space-y-4 relative z-10">
                 <div className="flex justify-between items-center text-slate-700 bg-white/60 p-4 rounded-2xl border border-white">
                   <span className="font-medium">Total Distance</span>
-                  <span className="font-black text-blue-900 text-lg">{routeInfo.distanceKm} km</span>
+                  <span className="font-black text-blue-900 text-lg">
+                    {routeInfo.status === 'unavailable' ? 'Driving distance unavailable' : `${routeInfo.distanceKm} km`}
+                  </span>
                 </div>
-                <div className="flex justify-between items-center text-slate-700 bg-white/60 p-4 rounded-2xl border border-white">
-                  <span className="font-medium">Est. Travel Time</span>
-                  <span className="font-black text-blue-900 text-lg">{Math.floor(routeInfo.durationMins / 60)}h {routeInfo.durationMins % 60}m</span>
-                </div>
+                {routeInfo.status !== 'unavailable' && (
+                  <div className="flex justify-between items-center text-slate-700 bg-white/60 p-4 rounded-2xl border border-white">
+                    <span className="font-medium">Est. Travel Time</span>
+                    <span className="font-black text-blue-900 text-lg">{Math.floor(routeInfo.durationMins / 60)}h {routeInfo.durationMins % 60}m</span>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -303,9 +307,8 @@ export default function BookingClient({ initialAirports, initialVehicles }: Book
                     Calculated Route
                   </div>
                   <RouteMap 
-                    originAddress={origin?.address || ""} 
-                    destinationAddress={destination?.address || ""} 
-                    encodedPolyline={routeInfo.polyline}
+                    origin={origin} 
+                    destination={destination}
                   />
                 </div>
               )}
@@ -352,9 +355,19 @@ export default function BookingClient({ initialAirports, initialVehicles }: Book
                             <p className="text-sm text-slate-500 font-medium mt-1">{vehicle.description}</p>
                           </div>
                           <div className="text-left md:text-right bg-slate-50 md:bg-transparent p-3 md:p-0 rounded-xl md:rounded-none w-full md:w-auto">
-                            <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Total Fare</div>
-                            <div className="text-2xl font-black text-blue-700">LKR {fare.toLocaleString()}</div>
-                            <div className="text-sm font-medium text-slate-500 mt-1">~ USD {Math.round(fare / 300)}</div>
+                            {routeInfo?.status === 'unavailable' ? (
+                              <>
+                                <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Pricing</div>
+                                <div className="text-xl font-black text-blue-700">Request Quote</div>
+                                <div className="text-xs text-slate-500 mt-1">Distance unknown</div>
+                              </>
+                            ) : (
+                              <>
+                                <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Total Fare</div>
+                                <div className="text-2xl font-black text-blue-700">LKR {fare.toLocaleString()}</div>
+                                <div className="text-sm font-medium text-slate-500 mt-1">~ USD {Math.round(fare / 300)}</div>
+                              </>
+                            )}
                           </div>
                         </div>
                         

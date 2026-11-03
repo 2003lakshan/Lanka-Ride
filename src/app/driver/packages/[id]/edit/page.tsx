@@ -110,11 +110,11 @@ export default function EditPackagePage() {
             <p className="text-slate-600">Update your itinerary details or publish it.</p>
           </div>
           <div>
-             {/* Note: In a real flow, a driver can only 'Submit for Review'. Here we allow direct publishing for demonstration. */}
              <select name="status" value={formData.status} onChange={handleChange} className="px-4 py-2 rounded-lg border-2 border-slate-200 focus:border-blue-500 outline-none bg-white font-bold text-sm text-slate-700">
                <option value="DRAFT">Draft</option>
-               <option value="PENDING_REVIEW">Pending Review</option>
-               <option value="PUBLISHED">Published</option>
+               <option value="PENDING_REVIEW">Submit for Review</option>
+               {formData.status === 'PUBLISHED' && <option value="PUBLISHED">Published</option>}
+               {formData.status === 'REJECTED' && <option value="REJECTED">Rejected</option>}
                <option value="PAUSED">Paused</option>
              </select>
           </div>

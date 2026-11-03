@@ -5,6 +5,7 @@ import dbConnect from "@/lib/mongodb";
 import Package from "@/models/Package";
 import Link from "next/link";
 import { MapPin, Calendar, Users, DollarSign, Clock, MessageCircle, ChevronRight, ShieldCheck, Camera } from "lucide-react";
+import ContactDriverButton from "@/components/packages/ContactDriverButton";
 
 export const dynamic = "force-dynamic";
 
@@ -155,10 +156,7 @@ export default async function PackageDetailsPage({ params }: { params: Promise<{
                 </div>
               </div>
 
-              <button className="w-full bg-slate-900 hover:bg-slate-800 text-white px-6 py-4 rounded-xl font-bold text-lg transition-all shadow-lg flex items-center justify-center gap-2">
-                <MessageCircle size={20} />
-                Contact Driver
-              </button>
+              <ContactDriverButton packageId={id} />
               
               <p className="text-center text-xs text-slate-500 mt-4 px-4 leading-relaxed">
                 You will not be charged yet. Contact the driver to finalize your itinerary and receive a customized quote.

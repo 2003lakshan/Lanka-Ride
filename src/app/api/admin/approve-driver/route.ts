@@ -29,6 +29,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Driver not found" }, { status: 404 });
     }
 
+    import("@/lib/notifications").then(async ({ sendNotification }) => {
+      await sendNotification({
+        recipientId: updatedDriver._id.toString(),
+        type: isApproved ? "DRIVER_APPROVED" : "DRIVER_REJECTED",
+        title: isApproved ? "Application Approved" : "Application Needs Attention",
+        message: isApproved 
+          ? "Congratulations! Your driver application has been approved." 
+          : "Your driver application was reviewed but requires corrections.",
+        link: `/profile`,
+        deduplicationKey: `driver_approval_${updatedDriver._id.toString()}_${Date.now()}`
+      });
+    }).catch(console.error);
+
+    import("@/lib/realtime").then(async ({ updateDriverApproval }) => {
+      await updateDriverApproval(updatedDriver._id.toString(), isApproved);
+    }).catch(console.error);
+
     return NextResponse.json({ message: "Driver approval status updated" }, { status: 200 });
   } catch (error: any) {
     console.error("Admin approval error:", error);

@@ -1,5 +1,10 @@
 import mongoose, { Schema, Document } from "mongoose";
-import { IPackageItinerary, IPackageMeals, IPackageCosts } from "./Package";
+import Package, { IPackageItinerary, IPackageMeals, IPackageCosts } from "./Package";
+
+// Ensure Package model is registered in Mongoose for population
+if (!Package) {
+  // no-op
+}
 
 export interface IEnquiryMessage {
   sender: 'RIDER' | 'DRIVER';
