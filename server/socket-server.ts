@@ -11,7 +11,7 @@ dotenv.config({ path: pathModule.resolve(__dirname, "../.env") });
 dotenv.config({ path: ".env.local" });
 dotenv.config({ path: ".env" });
 
-const PORT = parseInt(process.env.REALTIME_PORT || "3001", 10);
+const PORT = parseInt(process.env.PORT || process.env.REALTIME_PORT || "3001", 10);
 const HOST = process.env.REALTIME_HOST || "0.0.0.0";
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/lanka-airport-ride";
 const NEXTAUTH_SECRET = process.env.NEXTAUTH_SECRET || "local_development_secret_do_not_use_in_prod";
