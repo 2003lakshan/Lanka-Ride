@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Search, MapPin, Calendar, CheckCircle, Clock, Eye, AlertCircle, Sparkles } from "lucide-react";
 import { useSocket } from "@/components/providers/SocketProvider";
 import { useRouter } from "next/navigation";
+import { formatSriLankanDate } from "@/lib/dateTime";
 
 export default function CustomTripRequestsSection({ customTrips }: { customTrips: any[] }) {
   const { socket, registerReconnectHandler } = useSocket();
@@ -200,9 +201,9 @@ export default function CustomTripRequestsSection({ customTrips }: { customTrips
                   <td className="px-6 py-4">
                     <div className="font-mono font-bold text-slate-900">{trip.bookingReference}</div>
                     <div className="text-slate-600 font-medium mt-1">{trip.touristId?.fullName || trip.touristId?.name || "Unknown Rider"}</div>
-                    <div className="text-xs text-slate-400 mt-1 flex items-center gap-1">
+                    <div className="text-xs text-slate-400 mt-1 flex items-center gap-1" suppressHydrationWarning>
                       <Clock size={12} />
-                      Submitted {new Date(trip.createdAt).toLocaleDateString()}
+                      Submitted {formatSriLankanDate(trip.createdAt)}
                     </div>
                   </td>
                   <td className="px-6 py-4">

@@ -7,6 +7,7 @@ import PaymentActionClient from "@/components/booking/PaymentActionClient";
 import { useSocket } from "@/components/providers/SocketProvider";
 import { useRouter } from "next/navigation";
 import type { MyBookingDTO, MyPackageEnquiryDTO } from "@/lib/bookingDto";
+import { formatSriLankanDate } from "@/lib/dateTime";
 
 interface MyBookingsClientProps {
   initialBookings: MyBookingDTO[];
@@ -226,12 +227,12 @@ export default function MyBookingsClient({ initialBookings, initialEnquiries }: 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <p className="text-xs text-slate-500 font-bold uppercase mb-1">Date</p>
-                      <p className="text-sm font-medium text-slate-800 flex items-center gap-1">
+                      <p className="text-sm font-medium text-slate-800 flex items-center gap-1" suppressHydrationWarning>
                         <Calendar size={14} className="text-slate-400" />{" "}
                         {booking.arrivalDate
-                          ? new Date(booking.arrivalDate).toLocaleDateString()
+                          ? formatSriLankanDate(booking.arrivalDate)
                           : booking.customTripDetails?.startDate
-                          ? new Date(booking.customTripDetails.startDate).toLocaleDateString()
+                          ? formatSriLankanDate(booking.customTripDetails.startDate)
                           : "N/A"}
                       </p>
                     </div>
@@ -388,8 +389,8 @@ export default function MyBookingsClient({ initialBookings, initialEnquiries }: 
                     <h3 className="font-bold text-slate-900 text-lg line-clamp-1">
                       {enq.packageId?.title || "Custom Package"}
                     </h3>
-                    <p className="text-xs text-slate-500 mt-1">
-                      Requested {enq.createdAt ? new Date(enq.createdAt).toLocaleDateString() : "Recently"}
+                    <p className="text-xs text-slate-500 mt-1" suppressHydrationWarning>
+                      Requested {enq.createdAt ? formatSriLankanDate(enq.createdAt) : "Recently"}
                     </p>
                   </div>
                   <span className="bg-slate-100 text-slate-800 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">

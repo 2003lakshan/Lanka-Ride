@@ -9,12 +9,14 @@ const nextConfig: NextConfig = {
     "localhost:3000",
     "127.0.0.1",
     "127.0.0.1:3000",
+    "lowest-collectors-clarity-cut.trycloudflare.com",
   ],
   experimental: {
     serverActions: {
       allowedOrigins: [
         "192.168.8.100:3000",
         "localhost:3000",
+        "strain-tab-moved-loud.trycloudflare.com",
       ],
     },
   },

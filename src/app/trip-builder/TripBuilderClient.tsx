@@ -6,6 +6,7 @@ import { Calendar, Users, Briefcase, Car, DollarSign, MapPin, Plane, Plus, Trash
 import PlacesAutocompleteInput, { LocationState } from "@/components/booking/PlacesAutocompleteInput";
 import MapLocationPicker from "@/components/booking/MapLocationPicker";
 import ItineraryRouteSummary from "@/components/booking/ItineraryRouteSummary";
+import { formatSriLankanDate } from "@/lib/dateTime";
 
 interface VehicleType {
   _id: string;
@@ -605,7 +606,9 @@ export default function TripBuilderClient({ vehicleTypes, initialData }: { vehic
               <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div>
                   <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Dates</p>
-                  <p className="font-medium text-slate-900">{new Date(startDate).toLocaleDateString()} - {new Date(endDate).toLocaleDateString()}</p>
+                  <p className="font-medium text-slate-900" suppressHydrationWarning>
+                    {formatSriLankanDate(startDate)} - {formatSriLankanDate(endDate)}
+                  </p>
                   <p className="text-sm text-slate-500">{itinerary.length} Days, {itinerary.length - 1} Nights</p>
                 </div>
                 <div>

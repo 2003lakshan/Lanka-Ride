@@ -24,6 +24,7 @@ import {
 import RiderTrackingMap from "@/components/booking/RiderTrackingMap";
 import { useSocket } from "@/components/providers/SocketProvider";
 import { AdminTripViewModel } from "@/lib/tripViewModel";
+import { formatSriLankanDate } from "@/lib/dateTime";
 
 export default function AdminTripTrackingClient({
   initialBooking,
@@ -230,7 +231,7 @@ export default function AdminTripTrackingClient({
               {booking.createdAt && (
                 <>
                   <span>•</span>
-                  <span>Booked: {new Date(booking.createdAt).toLocaleDateString()}</span>
+                  <span suppressHydrationWarning>Booked: {formatSriLankanDate(booking.createdAt)}</span>
                 </>
               )}
             </div>
@@ -592,8 +593,8 @@ export default function AdminTripTrackingClient({
                   {booking.customTripDetails.itinerary.map((day, dayIdx) => (
                     <details key={dayIdx} className="bg-slate-50 rounded-xl border border-slate-100 group" open>
                       <summary className="font-bold text-slate-800 flex justify-between items-center p-4 cursor-pointer select-none">
-                        <span>
-                          Day {day.dayNumber} {day.date && `- ${new Date(day.date).toLocaleDateString()}`}
+                        <span suppressHydrationWarning>
+                          Day {day.dayNumber} {day.date && `- ${formatSriLankanDate(day.date)}`}
                         </span>
                         <span className="text-slate-400 group-open:rotate-180 transition-transform">▼</span>
                       </summary>

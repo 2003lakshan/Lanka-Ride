@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle, Send, ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import { formatSriLankanDate } from "@/lib/dateTime";
 
 export default function AdminTripReviewClient({ booking }: { booking: any }) {
   const router = useRouter();
@@ -135,8 +136,8 @@ export default function AdminTripReviewClient({ booking }: { booking: any }) {
         <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
           <h2 className="text-xl font-bold text-slate-800 mb-4 border-b pb-2">Trip Basics</h2>
           <div className="grid grid-cols-2 gap-4 text-sm mb-4">
-            <div><span className="text-slate-500">Start Date:</span> <span className="font-medium text-slate-900">{booking.customTripDetails?.startDate ? new Date(booking.customTripDetails.startDate).toLocaleDateString() : 'N/A'}</span></div>
-            <div><span className="text-slate-500">End Date:</span> <span className="font-medium text-slate-900">{booking.customTripDetails?.endDate ? new Date(booking.customTripDetails.endDate).toLocaleDateString() : 'N/A'}</span></div>
+            <div suppressHydrationWarning><span className="text-slate-500">Start Date:</span> <span className="font-medium text-slate-900">{booking.customTripDetails?.startDate ? formatSriLankanDate(booking.customTripDetails.startDate) : 'N/A'}</span></div>
+            <div suppressHydrationWarning><span className="text-slate-500">End Date:</span> <span className="font-medium text-slate-900">{booking.customTripDetails?.endDate ? formatSriLankanDate(booking.customTripDetails.endDate) : 'N/A'}</span></div>
             <div>
               <span className="text-slate-500">Budget:</span> 
               <span className="font-medium text-slate-900 ml-1">
@@ -172,7 +173,7 @@ export default function AdminTripReviewClient({ booking }: { booking: any }) {
           <div className="space-y-6">
             {booking.customTripDetails?.itinerary?.map((day: any, index: number) => (
               <div key={index} className="border border-slate-100 rounded-lg p-4 bg-slate-50">
-                <h3 className="font-bold text-slate-800 mb-2">Day {day.dayNumber} - {new Date(day.date).toLocaleDateString()}</h3>
+                <h3 className="font-bold text-slate-800 mb-2" suppressHydrationWarning>Day {day.dayNumber} - {formatSriLankanDate(day.date)}</h3>
                 <div className="text-sm space-y-2 mb-4">
                   <p><span className="text-slate-500">Start:</span> {day.startingLocation?.address || 'N/A'}</p>
                   <p><span className="text-slate-500">Places to Visit:</span> {day.placesToVisit?.length > 0 ? day.placesToVisit.map((p: any) => p.name).join(", ") : 'None specified'}</p>
