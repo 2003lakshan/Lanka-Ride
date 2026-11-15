@@ -210,16 +210,29 @@ export default function IncomingTripModal({
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            {/* Audio Unlock Button (if browser autoplay policy blocked chime) */}
-            {!isDevPreview && soundState.audioBlocked && (
+            {/* Audio Retry / Ringtone Control Button */}
+            {!isDevPreview && (
               <button
                 type="button"
-                onClick={() => soundManager.unlockAudio()}
-                className="px-2 py-0.5 text-[10px] font-bold bg-amber-600 text-white rounded-full flex items-center gap-1 shadow-xs cursor-pointer"
-                title="Tap to enable sound"
+                onClick={() => soundManager.startRinging(bookingId)}
+                className={`px-2.5 py-1 text-xs font-black rounded-full flex items-center gap-1 shadow-xs transition-all cursor-pointer ${
+                  soundState.audioBlocked || !soundState.isRinging
+                    ? "bg-rose-600 text-white animate-pulse"
+                    : "bg-emerald-700 text-white"
+                }`}
+                title={soundState.audioBlocked ? "Sound blocked by phone browser. Tap to play ringtone!" : "Ringing active. Tap to replay."}
               >
-                <VolumeX size={11} />
-                <span>Audio</span>
+                {soundState.audioBlocked || !soundState.isRinging ? (
+                  <>
+                    <VolumeX size={12} />
+                    <span>Tap Sound</span>
+                  </>
+                ) : (
+                  <>
+                    <Volume2 size={12} className="animate-bounce" />
+                    <span>Ringing</span>
+                  </>
+                )}
               </button>
             )}
 
@@ -241,6 +254,21 @@ export default function IncomingTripModal({
 
         {/* Scrollable Card Body */}
         <div ref={scrollBodyRef} className="overflow-y-auto min-h-0 flex-1 overscroll-contain pb-2">
+          {/* Audio Blocked Alert Banner for Mobile Browsers */}
+          {!isDevPreview && soundState.audioBlocked && (
+            <button
+              type="button"
+              onClick={() => soundManager.startRinging(bookingId)}
+              className="mx-4 mt-3 w-[calc(100%-32px)] p-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl flex items-center justify-between text-xs font-black shadow-md cursor-pointer animate-pulse"
+            >
+              <div className="flex items-center gap-2 text-left">
+                <VolumeX size={16} className="shrink-0" />
+                <span>Phone blocked audio! Tap here to start ringtone</span>
+              </div>
+              <span className="bg-white text-rose-700 px-2.5 py-1 rounded-xl text-[11px] font-black shrink-0">Play Ringtone</span>
+            </button>
+          )}
+
           {/* Map Preview with Floating Vehicle Badge */}
           <div className="mx-4 mt-3 rounded-2xl overflow-hidden border border-slate-200/80 shadow-xs relative shrink-0">
             <OfferMapPreview

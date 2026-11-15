@@ -529,16 +529,16 @@ export default function DriverDashboardClient({
             <span>{isDriverOnline ? "Online • Ready" : "Offline"}</span>
           </button>
 
-          {/* Sound Controls Indicator */}
+          {/* Sound Controls Indicator & Ringtone Initializer */}
           {soundState.audioBlocked ? (
             <button
               type="button"
-              onClick={() => soundManager.unlockAudio()}
+              onClick={() => soundManager.initializeRingtonePlayer()}
               className="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-colors shadow-sm animate-bounce cursor-pointer"
-              title="Browser blocked audio autoplay. Click to unlock trip sounds."
+              title="Browser blocked audio autoplay. Tap to enable ride ringtone."
             >
               <VolumeX size={15} />
-              <span>Enable Sounds</span>
+              <span>Enable Ride Sounds</span>
             </button>
           ) : (
             <button
@@ -555,6 +555,17 @@ export default function DriverDashboardClient({
               <span>{soundState.soundEnabled ? "Sounds On" : "Muted"}</span>
             </button>
           )}
+
+          {/* Test Ringtone button for physical phone verification */}
+          <button
+            type="button"
+            onClick={() => soundManager.testRingtone()}
+            className="px-2.5 py-2 rounded-xl text-xs font-bold border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 flex items-center gap-1 shadow-xs cursor-pointer"
+            title="Play incoming ride ringtone test on phone"
+          >
+            <Volume2 size={14} className="text-amber-500" />
+            <span>Test Ringtone</span>
+          </button>
 
           <Link
             href="/driver/packages"

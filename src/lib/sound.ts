@@ -164,7 +164,7 @@ class SoundManager {
             await p;
             this.preloadedAudio.pause();
             this.preloadedAudio.currentTime = 0;
-            this.preloadedAudio.volume = 0.85;
+            this.preloadedAudio.volume = 0.75;
           }
         } catch {}
       }
@@ -353,16 +353,58 @@ class SoundManager {
    * User-triggered sound test (always plays regardless of cooldown).
    */
   /**
+   * Initializes and primes the physical ringtone player on direct user gesture
+   * (e.g. driver tapping 'Go Online' or 'Enable Ride Sounds' button).
+   */
+  public async initializeRingtonePlayer(): Promise<boolean> {
+    if (typeof window === "undefined") return false;
+
+    console.log("[SoundManager] Initializing ringtone player via user gesture...");
+    try {
+      await this.unlockAudio();
+
+      if (!this.ringingAudio) {
+        this.ringingAudio = new Audio("/sounds/incoming-trip.mp3");
+        this.ringingAudio.preload = "auto";
+      }
+      this.ringingAudio.loop = true;
+      this.ringingAudio.volume = 0;
+
+      // Prime playback silently to satisfy mobile Safari/Chrome autoplay policy
+      const p = this.ringingAudio.play();
+      if (p !== undefined) {
+        await p;
+        this.ringingAudio.pause();
+        this.ringingAudio.currentTime = 0;
+        this.ringingAudio.volume = 0.9;
+      }
+
+      this.audioUnlocked = true;
+      this.audioBlocked = false;
+      this.notify();
+      console.log("[SoundManager] Ringtone player successfully primed and unlocked.");
+      return true;
+    } catch (err: any) {
+      console.warn(`[SoundManager] Ringtone priming deferred: ${err.name} - ${err.message}`);
+      this.audioBlocked = true;
+      this.notify();
+      return false;
+    }
+  }
+
+  /**
    * Starts looping incoming ride notification sound/ringing alert for a specific offer.
    * Plays the custom incoming trip sound repeatedly until explicitly accepted or dismissed.
    */
   public async startRinging(offerId: string): Promise<boolean> {
     if (typeof window === "undefined" || !this.soundEnabled) {
+      console.log(`[SoundManager] startRinging(${offerId}) suppressed: soundEnabled=${this.soundEnabled}`);
       return false;
     }
 
     // If already ringing for this offer, no need to restart
     if (this.ringingOfferId === offerId && this.ringingAudio && !this.ringingAudio.paused) {
+      console.log(`[SoundManager] startRinging(${offerId}) already active.`);
       return true;
     }
 
@@ -374,27 +416,36 @@ class SoundManager {
 
     try {
       if (!this.ringingAudio) {
+        console.log("[SoundManager] Creating new HTMLAudioElement for /sounds/incoming-trip.mp3");
         this.ringingAudio = new Audio("/sounds/incoming-trip.mp3");
         this.ringingAudio.preload = "auto";
       }
       this.ringingAudio.loop = true;
       this.ringingAudio.volume = 0.9;
       this.ringingAudio.currentTime = 0;
+
+      console.log(`[SoundManager] Calling ringingAudio.play() for offer: ${offerId}`);
       const playPromise = this.ringingAudio.play();
       if (playPromise !== undefined) {
-        await playPromise;
-        this.audioUnlocked = true;
-        this.audioBlocked = false;
-        this.notify();
-        return true;
+        try {
+          await playPromise;
+          console.log(`[SoundManager] ringingAudio.play() RESOLVED successfully for offer: ${offerId}`);
+          this.audioUnlocked = true;
+          this.audioBlocked = false;
+          this.notify();
+          return true;
+        } catch (playErr: any) {
+          console.error(`[SoundManager] ringingAudio.play() REJECTED for offer ${offerId}: ErrorName=${playErr.name}, Message=${playErr.message}`, playErr);
+          this.audioBlocked = true;
+          this.notify();
+          return false;
+        }
       }
     } catch (err: any) {
-      if (err.name === "NotAllowedError") {
-        this.audioBlocked = true;
-        this.notify();
-        console.warn("[SoundManager] Autoplay blocked for incoming trip ringtone. User gesture required.");
-        return false;
-      }
+      console.error(`[SoundManager] startRinging(${offerId}) synchronous exception: ErrorName=${err.name}, Message=${err.message}`, err);
+      this.audioBlocked = true;
+      this.notify();
+      return false;
     }
 
     return true;
@@ -409,6 +460,8 @@ class SoundManager {
       // Specified offer does not match currently active ringing offer
       return;
     }
+
+    console.log(`[SoundManager] stopRinging() called for offer: ${this.ringingOfferId || offerId || "all"}`);
 
     if (this.ringingInterval) {
       clearInterval(this.ringingInterval);
@@ -425,6 +478,47 @@ class SoundManager {
     }
 
     this.notify();
+  }
+
+  /**
+   * Tests ringtone playback on demand (plays 3 seconds of incoming trip ringtone)
+   */
+  public async testRingtone(): Promise<boolean> {
+    console.log("[SoundManager] Testing incoming trip ringtone on physical device...");
+    await this.unlockAudio();
+
+    try {
+      if (!this.ringingAudio) {
+        this.ringingAudio = new Audio("/sounds/incoming-trip.mp3");
+      }
+      this.ringingAudio.volume = 0.9;
+      this.ringingAudio.currentTime = 0;
+      this.ringingAudio.loop = false;
+
+      const p = this.ringingAudio.play();
+      if (p !== undefined) {
+        await p;
+        console.log("[SoundManager] testRingtone() RESOLVED successfully.");
+        this.audioUnlocked = true;
+        this.audioBlocked = false;
+        this.notify();
+
+        setTimeout(() => {
+          if (this.ringingAudio && !this.ringingOfferId) {
+            this.ringingAudio.pause();
+            this.ringingAudio.currentTime = 0;
+          }
+        }, 3000);
+
+        return true;
+      }
+    } catch (err: any) {
+      console.error(`[SoundManager] testRingtone() REJECTED: ErrorName=${err.name}, Message=${err.message}`);
+      this.audioBlocked = true;
+      this.notify();
+      return false;
+    }
+    return false;
   }
 
   public async testSound(): Promise<boolean> {

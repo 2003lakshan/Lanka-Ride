@@ -205,6 +205,10 @@ export function IncomingRideProvider({ children }: { children: React.ReactNode }
     if (!isDriver) return;
     const next = !isDriverOnline;
     setIsDriverOnline(next);
+
+    // Initialize and prime ringtone player on direct driver user gesture
+    soundManager.initializeRingtonePlayer().catch(() => {});
+
     try {
       await fetch("/api/driver/heartbeat", {
         method: "POST",

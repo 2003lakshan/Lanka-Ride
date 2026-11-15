@@ -49,6 +49,11 @@ function isOriginAllowed(origin: string | undefined): boolean {
     if ((isLocalhost || isPrivateIP) && (url.port === "3000" || url.port === "3001" || !url.port)) {
       return true;
     }
+
+    // Automatically allow Cloudflare Quick Tunnel origins in dev/testing
+    if (host.endsWith(".trycloudflare.com")) {
+      return true;
+    }
   } catch {}
 
   return false;
@@ -155,6 +160,11 @@ const httpServer = http.createServer(async (req, res) => {
         timestamp: new Date().toISOString(),
       })
     );
+    return;
+  }
+
+  // Allow Engine.IO to handle Socket.IO requests (polling & websocket)
+  if (url.pathname.startsWith("/socket.io")) {
     return;
   }
 

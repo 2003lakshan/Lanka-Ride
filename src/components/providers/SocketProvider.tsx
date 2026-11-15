@@ -37,8 +37,8 @@ interface SocketProviderProps {
 
 /**
  * Resolves the Socket.IO server URL.
- * Automatically adapts between laptop (localhost) and phone (Wi-Fi IP e.g. 192.168.8.100)
- * so devices connect directly to the laptop's network IP on port 3001 without manual toggles.
+ * Automatically adapts between laptop (localhost), local LAN phone (Wi-Fi IP e.g. 192.168.8.100),
+ * and public tunnels (e.g. trycloudflare.com).
  */
 function getSocketServerUrl(): string {
   if (typeof window !== "undefined") {
@@ -46,19 +46,32 @@ function getSocketServerUrl(): string {
     const host = window.location.hostname;
     const port = process.env.NEXT_PUBLIC_REALTIME_PORT || "3001";
 
-    // If client is accessing from a local/network IP or localhost, dynamically use that host!
-    // Laptop visiting http://localhost:3000 -> connects to http://localhost:3001
-    // Phone visiting http://192.168.8.100:3000 -> connects to http://192.168.8.100:3001
-    if (host && host !== "0.0.0.0") {
+    // 1. If accessing via localhost or private LAN IP (same Wi-Fi), connect directly to port 3001:
+    const isLocalOrLan =
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      /^192\.168\.\d{1,3}\.\d{1,3}$/.test(host) ||
+      /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host) ||
+      /^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}$/.test(host);
+
+    if (isLocalOrLan) {
       return `${protocol}//${host}:${port}`;
     }
 
+    // 2. If a dedicated remote realtime URL is provided (excluding dead trycloudflare tunnels):
     const envUrl = process.env.NEXT_PUBLIC_REALTIME_URL;
-    if (envUrl && !envUrl.includes("localhost") && !envUrl.includes("0.0.0.0")) {
+    if (
+      envUrl &&
+      !envUrl.includes("localhost") &&
+      !envUrl.includes("0.0.0.0") &&
+      !envUrl.includes("trycloudflare.com")
+    ) {
       return envUrl;
     }
 
-    return `${protocol}//${host || "localhost"}:${port}`;
+    // 3. For public tunnels (e.g. *.trycloudflare.com) where port 3001 is NOT exposed:
+    // Connect to same-origin (standard HTTPS port 443) routed through Next.js /socket.io rewrite!
+    return window.location.origin;
   }
 
   return process.env.NEXT_PUBLIC_REALTIME_URL || "http://localhost:3001";
@@ -163,7 +176,8 @@ export function SocketProvider({ children }: SocketProviderProps) {
 
         newSocket.on("connect", () => {
           setConnectionState("connected");
-          console.log("[Realtime] Connected to WebSocket server:", newSocket.id);
+          const transport = newSocket.io?.engine?.transport?.name || "unknown";
+          console.log(`[Realtime] Connected to WebSocket server: ID=${newSocket.id}, Transport=${transport}, Target=${socketUrl}`);
         });
 
         newSocket.on("reconnect", () => {

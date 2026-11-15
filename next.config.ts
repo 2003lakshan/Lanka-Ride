@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  skipTrailingSlashRedirect: true,
   // Allow physical mobile phone on local Wi-Fi to load dev chunks without 403 Forbidden
   allowedDevOrigins: [
     "192.168.8.100",
@@ -16,9 +17,18 @@ const nextConfig: NextConfig = {
       allowedOrigins: [
         "192.168.8.100:3000",
         "localhost:3000",
-        "strain-tab-moved-loud.trycloudflare.com",
+        "lowest-collectors-clarity-cut.trycloudflare.com",
+        "*.trycloudflare.com",
       ],
     },
+  },
+  async rewrites() {
+    return [
+      {
+        source: "/socket.io/:path*",
+        destination: "http://127.0.0.1:3001/socket.io/:path*",
+      },
+    ];
   },
 };
 
