@@ -17,6 +17,13 @@ interface NotificationToast {
   createdAt: number;
 }
 
+// Self-initiated submission events that must remain silent for the user (no chime or ringtone)
+const SILENT_NOTIFICATION_TYPES = new Set([
+  "BOOKING_SUBMITTED",
+  "PACKAGE_ENQUIRY_SUBMITTED",
+  "REGISTRATION_RECEIVED",
+]);
+
 interface NotificationSoundContextValue {
   soundEnabled: boolean;
   audioUnlocked: boolean;
@@ -101,7 +108,10 @@ export function NotificationSoundProvider({ children }: { children: React.ReactN
         new Date(notif.createdAt || Date.now()).getTime()
       );
 
-      soundManager.playNotificationSound(notifId);
+      // Only play notification chime for incoming notifications, keeping self-initiated confirmations silent
+      if (!SILENT_NOTIFICATION_TYPES.has(notif.type)) {
+        soundManager.playNotificationSound(notifId);
+      }
 
       addToast({
         id: notifId,
@@ -286,8 +296,10 @@ export function NotificationSoundProvider({ children }: { children: React.ReactN
             new Date(notif.createdAt).getTime()
           );
 
-          // Trigger sound for the new arrival
-          soundManager.playNotificationSound(notif._id);
+          // Trigger sound for incoming notifications (silent for self-initiated actions)
+          if (!SILENT_NOTIFICATION_TYPES.has(notif.type)) {
+            soundManager.playNotificationSound(notif._id);
+          }
 
           addToast({
             id: notif._id,

@@ -39,15 +39,15 @@ class SoundManager {
       const saved = localStorage.getItem(STORAGE_KEY_SOUND_ENABLED);
       this.soundEnabled = saved !== "false";
 
-      // Pre-load notification sound asset
+      // Pre-load notification sound asset (subtle chime for notifications)
       try {
-        this.preloadedAudio = new Audio("/sounds/incoming-trip.mp3");
+        this.preloadedAudio = new Audio("/sounds/notification.mp3");
         this.preloadedAudio.preload = "auto";
-        this.preloadedAudio.volume = 0.85;
+        this.preloadedAudio.volume = 0.75;
         this.preloadedAudio.load();
       } catch {}
 
-      // Pre-load persistent incoming trip ringing audio
+      // Pre-load persistent incoming trip ringing audio (reserved exclusively for driver ride offers)
       try {
         this.ringingAudio = new Audio("/sounds/incoming-trip.mp3");
         this.ringingAudio.preload = "auto";
@@ -294,11 +294,11 @@ class SoundManager {
       return false;
     }
 
-    // 3. Attempt playback using HTMLAudioElement
+    // 3. Attempt playback using HTMLAudioElement (notification chime)
     let played = false;
     try {
-      const audio = this.preloadedAudio ? (this.preloadedAudio.cloneNode() as HTMLAudioElement) : new Audio("/sounds/incoming-trip.mp3");
-      audio.volume = 0.85;
+      const audio = this.preloadedAudio ? (this.preloadedAudio.cloneNode() as HTMLAudioElement) : new Audio("/sounds/notification.mp3");
+      audio.volume = 0.75;
       const playPromise = audio.play();
 
       if (playPromise !== undefined) {
@@ -393,12 +393,9 @@ class SoundManager {
         this.audioBlocked = true;
         this.notify();
         console.warn("[SoundManager] Autoplay blocked for incoming trip ringtone. User gesture required.");
+        return false;
       }
     }
-
-    // Fallback: trigger notification sound once if audio element play was delayed
-    this.lastPlayedTime = 0;
-    await this.playNotificationSound(`offer_ring_${offerId}_${Date.now()}`);
 
     return true;
   }
@@ -427,13 +424,6 @@ class SoundManager {
       } catch {}
     }
 
-    if (this.preloadedAudio) {
-      try {
-        this.preloadedAudio.pause();
-        this.preloadedAudio.currentTime = 0;
-      } catch {}
-    }
-
     this.notify();
   }
 
@@ -441,10 +431,10 @@ class SoundManager {
     await this.unlockAudio();
     this.lastPlayedTime = 0; // Reset cooldown for test
 
-    // Try HTML audio first with custom incoming trip ringtone
+    // Try HTML audio first with notification chime
     try {
-      const audio = new Audio("/sounds/incoming-trip.mp3");
-      audio.volume = 0.85;
+      const audio = new Audio("/sounds/notification.mp3");
+      audio.volume = 0.75;
       await audio.play();
       this.audioUnlocked = true;
       this.audioBlocked = false;
