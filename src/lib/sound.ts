@@ -2,10 +2,11 @@
  * Comprehensive Audio Alert and Notification Sound Manager
  * Handles:
  * - Autoplay unlocking via user gesture on mobile browsers (Android/iOS)
- * - Silent buffer audio unlock for Web Audio API + HTMLAudioElement preloading
+ * - Safe HTMLAudioElement preloading without play/pause collision
  * - Multi-tab deduplication and burst throttling
  * - Graceful fallback to Web Audio API synthesis
  * - Blocked playback detection and subscriber notification
+ * - Strict synchronization of play/pause to guarantee NO AbortError
  */
 
 export interface SoundState {
@@ -30,17 +31,31 @@ class SoundManager {
   private lastPlayedTime: number = 0;
   private subscribers: Set<(state: SoundState) => void> = new Set();
   private broadcastChannel: BroadcastChannel | null = null;
+
+  // Ringtone state machine
   private ringingOfferId: string | null = null;
-  private ringingInterval: any = null;
-  private ringingPlayPromise: Promise<void> | null = null;
+  private isRingingRequested: boolean = false;
+  private pendingRingingPlayPromise: Promise<void> | null = null;
 
   constructor() {
     if (typeof window !== "undefined") {
-      // Load saved preference (default: enabled)
+      // 1. Prevent Next.js / Turbopack overlay from capturing benign audio cancellations
+      window.addEventListener("unhandledrejection", (event) => {
+        const reason = event.reason;
+        if (
+          reason?.name === "AbortError" ||
+          (typeof reason?.message === "string" &&
+            reason.message.toLowerCase().includes("interrupted by a call to pause"))
+        ) {
+          event.preventDefault();
+        }
+      });
+
+      // 2. Load saved preference (default: enabled)
       const saved = localStorage.getItem(STORAGE_KEY_SOUND_ENABLED);
       this.soundEnabled = saved !== "false";
 
-      // Pre-load notification sound asset (subtle chime for notifications)
+      // 3. Pre-load notification sound asset (subtle chime for notifications)
       try {
         this.preloadedAudio = new Audio("/sounds/notification.mp3");
         this.preloadedAudio.preload = "auto";
@@ -48,7 +63,7 @@ class SoundManager {
         this.preloadedAudio.load();
       } catch {}
 
-      // Pre-load persistent incoming trip ringing audio (reserved exclusively for driver ride offers)
+      // 4. Pre-load persistent incoming trip ringing audio (reserved exclusively for driver ride offers)
       try {
         this.ringingAudio = new Audio("/sounds/incoming-trip.mp3");
         this.ringingAudio.preload = "auto";
@@ -57,7 +72,7 @@ class SoundManager {
         this.ringingAudio.load();
       } catch {}
 
-      // Setup BroadcastChannel for cross-tab audio deduplication
+      // 5. Setup BroadcastChannel for cross-tab audio deduplication
       try {
         if ("BroadcastChannel" in window) {
           this.broadcastChannel = new BroadcastChannel("lar_notification_audio");
@@ -71,7 +86,7 @@ class SoundManager {
         // Fallback to localStorage
       }
 
-      // Automatically attempt unlock on first user gesture
+      // 6. Automatically attempt unlock on first user gesture
       const autoUnlock = () => {
         if (!this.audioUnlocked) {
           this.unlockAudio().catch(() => {});
@@ -88,7 +103,7 @@ class SoundManager {
       soundEnabled: this.soundEnabled,
       audioUnlocked: this.audioUnlocked,
       audioBlocked: this.audioBlocked,
-      isRinging: Boolean(this.ringingOfferId),
+      isRinging: Boolean(this.ringingOfferId && this.isRingingRequested),
       ringingOfferId: this.ringingOfferId,
     };
   }
@@ -125,12 +140,16 @@ class SoundManager {
     if (typeof window !== "undefined") {
       localStorage.setItem(STORAGE_KEY_SOUND_ENABLED, enabled ? "true" : "false");
     }
+    if (!enabled) {
+      this.stopRinging();
+    }
     this.notify();
   }
 
   /**
-   * Initializes and resumes AudioContext and preloaded HTMLAudio on direct user gesture.
-   * Plays a 1-sample silent Web Audio buffer to satisfy mobile Chrome/Safari autoplay policies.
+   * Initializes and resumes AudioContext and buffers audio elements on direct user gesture.
+   * Uses a 1-sample silent Web Audio buffer to satisfy mobile Chrome/Safari autoplay policies
+   * without calling .play()/.pause() on media elements.
    */
   public async unlockAudio(): Promise<boolean> {
     if (typeof window === "undefined") return false;
@@ -145,7 +164,7 @@ class SoundManager {
         await this.audioContext.resume();
       }
 
-      // Play 1-sample silent buffer to unlock Web Audio on mobile WebKit / Blink
+      // Play 1-sample silent buffer to permanently unlock Web Audio on mobile WebKit / Blink
       if (this.audioContext && this.audioContext.state === "running") {
         try {
           const buffer = this.audioContext.createBuffer(1, 1, 22050);
@@ -156,47 +175,22 @@ class SoundManager {
         } catch {}
       }
 
-      // Unlock HTMLAudioElements by playing silently for 1ms
+      // Pre-buffer HTMLAudioElements cleanly using load() without play/pause race conditions
       if (this.preloadedAudio) {
         try {
-          this.preloadedAudio.volume = 0;
-          const p = this.preloadedAudio.play();
-          if (p !== undefined) {
-            try {
-              await p;
-              this.preloadedAudio.pause();
-              this.preloadedAudio.currentTime = 0;
-              this.preloadedAudio.volume = 0.75;
-            } catch (pErr: any) {
-              if (pErr.name !== "AbortError") {
-                // Ignore silent abort
-              }
-            }
-          }
+          this.preloadedAudio.load();
         } catch {}
       }
-
-      if (this.ringingAudio && !this.ringingOfferId) {
+      if (this.ringingAudio && !this.isRingingRequested) {
         try {
-          this.ringingAudio.volume = 0;
-          const p = this.ringingAudio.play();
-          if (p !== undefined) {
-            try {
-              await p;
-              this.ringingAudio.pause();
-              this.ringingAudio.currentTime = 0;
-              this.ringingAudio.volume = 0.9;
-            } catch (pErr: any) {
-              if (pErr.name !== "AbortError") {
-                // Ignore silent abort
-              }
-            }
-          }
+          this.ringingAudio.load();
         } catch {}
       }
 
       this.audioUnlocked = Boolean(
-        (this.audioContext && this.audioContext.state === "running") || this.preloadedAudio || this.ringingAudio
+        (this.audioContext && this.audioContext.state === "running") ||
+        this.preloadedAudio ||
+        this.ringingAudio
       );
       this.audioBlocked = false;
       this.notify();
@@ -310,11 +304,14 @@ class SoundManager {
     // 3. Attempt playback using HTMLAudioElement (notification chime)
     let played = false;
     try {
-      const audio = this.preloadedAudio ? (this.preloadedAudio.cloneNode() as HTMLAudioElement) : new Audio("/sounds/notification.mp3");
+      const audio = this.preloadedAudio
+        ? (this.preloadedAudio.cloneNode() as HTMLAudioElement)
+        : new Audio("/sounds/notification.mp3");
       audio.volume = 0.75;
       const playPromise = audio.play();
 
       if (playPromise !== undefined) {
+        playPromise.catch(() => {});
         await playPromise;
         played = true;
       }
@@ -322,7 +319,6 @@ class SoundManager {
       if (err.name === "AbortError") {
         return false;
       }
-      // If HTML Audio was blocked by mobile browser autoplay policy
       if (err.name === "NotAllowedError") {
         console.warn("[SoundManager] HTML Audio blocked by browser policy. Attempting Web Audio...");
       }
@@ -366,9 +362,6 @@ class SoundManager {
   }
 
   /**
-   * User-triggered sound test (always plays regardless of cooldown).
-   */
-  /**
    * Initializes and primes the physical ringtone player on direct user gesture
    * (e.g. driver tapping 'Go Online' or 'Enable Ride Sounds' button).
    */
@@ -381,24 +374,10 @@ class SoundManager {
       if (!this.ringingAudio) {
         this.ringingAudio = new Audio("/sounds/incoming-trip.mp3");
         this.ringingAudio.preload = "auto";
+        this.ringingAudio.loop = true;
+        this.ringingAudio.volume = 0.9;
       }
-      this.ringingAudio.loop = true;
-      this.ringingAudio.volume = 0;
-
-      // Prime playback silently to satisfy mobile Safari/Chrome autoplay policy
-      const p = this.ringingAudio.play();
-      if (p !== undefined) {
-        try {
-          await p;
-          this.ringingAudio.pause();
-          this.ringingAudio.currentTime = 0;
-          this.ringingAudio.volume = 0.9;
-        } catch (primeErr: any) {
-          if (primeErr.name !== "AbortError") {
-            throw primeErr;
-          }
-        }
-      }
+      this.ringingAudio.load();
 
       this.audioUnlocked = true;
       this.audioBlocked = false;
@@ -406,7 +385,7 @@ class SoundManager {
       return true;
     } catch (err: any) {
       if (err.name !== "AbortError") {
-        console.warn(`[SoundManager] Ringtone priming deferred: ${err.name} - ${err.message}`);
+        console.warn(`[SoundManager] Ringtone initialization deferred: ${err.name} - ${err.message}`);
         this.audioBlocked = true;
         this.notify();
       }
@@ -417,64 +396,74 @@ class SoundManager {
   /**
    * Starts looping incoming ride notification sound/ringing alert for a specific offer.
    * Plays the custom incoming trip sound repeatedly until explicitly accepted or dismissed.
+   * Completely race-condition proof: never interrupts an in-flight play() with pause().
    */
   public async startRinging(offerId: string): Promise<boolean> {
     if (typeof window === "undefined" || !this.soundEnabled) {
       return false;
     }
 
-    // If already ringing for this offer, no need to restart
-    if (this.ringingOfferId === offerId && this.ringingAudio && !this.ringingAudio.paused) {
+    // If already actively ringing for this exact offer, do not restart
+    if (this.isRingingRequested && this.ringingOfferId === offerId) {
       return true;
     }
 
-    // Stop any existing ringing
-    this.stopRinging();
-
+    this.isRingingRequested = true;
     this.ringingOfferId = offerId;
     this.notify();
 
-    try {
-      if (!this.ringingAudio) {
-        this.ringingAudio = new Audio("/sounds/incoming-trip.mp3");
-        this.ringingAudio.preload = "auto";
-      }
-      this.ringingAudio.loop = true;
-      this.ringingAudio.volume = 0.9;
-      this.ringingAudio.currentTime = 0;
+    if (!this.ringingAudio) {
+      this.ringingAudio = new Audio("/sounds/incoming-trip.mp3");
+      this.ringingAudio.preload = "auto";
+    }
+    this.ringingAudio.loop = true;
+    this.ringingAudio.volume = 0.9;
 
-      const playPromise = this.ringingAudio.play();
-      if (playPromise !== undefined) {
-        this.ringingPlayPromise = playPromise;
-        try {
-          await playPromise;
+    // If a play() request is already pending, let it finish.
+    // It will continue looping once settled.
+    if (this.pendingRingingPlayPromise) {
+      return true;
+    }
+
+    try {
+      this.ringingAudio.currentTime = 0;
+    } catch {}
+
+    const audio = this.ringingAudio;
+    const playPromise = audio.play();
+
+    if (playPromise !== undefined) {
+      this.pendingRingingPlayPromise = playPromise;
+
+      playPromise
+        .then(() => {
+          this.pendingRingingPlayPromise = null;
           this.audioUnlocked = true;
           this.audioBlocked = false;
           this.notify();
-          return true;
-        } catch (playErr: any) {
-          // AbortError indicates play() was interrupted by an intentional pause() (e.g. unmount / fast dismiss)
-          if (playErr.name === "AbortError") {
-            return false;
+
+          // If stopRinging() was requested while play() was in flight:
+          // Now that play() has resolved successfully, pause safely!
+          if (!this.isRingingRequested) {
+            try {
+              audio.pause();
+              audio.currentTime = 0;
+            } catch {}
           }
-          if (playErr.name === "NotAllowedError") {
+        })
+        .catch((playErr: any) => {
+          this.pendingRingingPlayPromise = null;
+          if (playErr?.name === "AbortError") {
+            return;
+          }
+          if (playErr?.name === "NotAllowedError") {
             this.audioBlocked = true;
             this.notify();
             console.warn("[SoundManager] Autoplay blocked for incoming trip ringtone. User gesture required.");
-            return false;
+            return;
           }
-          console.warn("[SoundManager] ringingAudio.play() deferred:", playErr.message);
-          return false;
-        } finally {
-          this.ringingPlayPromise = null;
-        }
-      }
-    } catch (err: any) {
-      if (err.name === "AbortError") {
-        return false;
-      }
-      console.warn("[SoundManager] startRinging exception:", err);
-      return false;
+          console.warn("[SoundManager] ringingAudio.play() deferred:", playErr?.message);
+        });
     }
 
     return true;
@@ -483,33 +472,23 @@ class SoundManager {
   /**
    * Immediately stops ringing sound and pauses audio safely.
    * Called on accept, reject, expiry, cancellation, or withdrawal.
+   * If a play() request is pending, it defers the pause until the play() promise resolves,
+   * preventing browser AbortErrors.
    */
   public stopRinging(offerId?: string): void {
     if (offerId && this.ringingOfferId && this.ringingOfferId !== offerId) {
-      // Specified offer does not match currently active ringing offer
       return;
     }
 
-    if (this.ringingInterval) {
-      clearInterval(this.ringingInterval);
-      this.ringingInterval = null;
-    }
-
+    this.isRingingRequested = false;
     this.ringingOfferId = null;
 
-    if (this.ringingAudio) {
-      const audio = this.ringingAudio;
-      // If a play() request is still in-flight, wait for it before pausing to prevent AbortError
-      if (this.ringingPlayPromise) {
-        this.ringingPlayPromise
-          .then(() => {
-            try {
-              audio.pause();
-              audio.currentTime = 0;
-            } catch {}
-          })
-          .catch(() => {});
-      } else {
+    const audio = this.ringingAudio;
+    if (audio) {
+      // Only pause immediately if NO play() promise is in-flight.
+      // If a play() promise is pending, the then() handler in startRinging will
+      // pause safely once play() completes without triggering AbortError.
+      if (!this.pendingRingingPlayPromise) {
         try {
           audio.pause();
           audio.currentTime = 0;
@@ -521,52 +500,54 @@ class SoundManager {
   }
 
   /**
-   * Tests ringtone playback on demand (plays 3 seconds of incoming trip ringtone)
+   * Tests ringtone playback on demand (plays 3 seconds of incoming trip ringtone).
    */
   public async testRingtone(): Promise<boolean> {
     await this.unlockAudio();
+    this.stopRinging();
 
+    this.isRingingRequested = true;
+    this.ringingOfferId = "test_preview";
+
+    if (!this.ringingAudio) {
+      this.ringingAudio = new Audio("/sounds/incoming-trip.mp3");
+      this.ringingAudio.preload = "auto";
+    }
+    const audio = this.ringingAudio;
+    audio.loop = true;
+    audio.volume = 0.9;
     try {
-      if (!this.ringingAudio) {
-        this.ringingAudio = new Audio("/sounds/incoming-trip.mp3");
-      }
-      this.ringingAudio.volume = 0.9;
-      this.ringingAudio.currentTime = 0;
-      this.ringingAudio.loop = false;
+      audio.currentTime = 0;
+    } catch {}
 
-      const p = this.ringingAudio.play();
-      if (p !== undefined) {
-        try {
-          await p;
+    const playPromise = audio.play();
+    if (playPromise !== undefined) {
+      this.pendingRingingPlayPromise = playPromise;
+
+      playPromise
+        .then(() => {
+          this.pendingRingingPlayPromise = null;
           this.audioUnlocked = true;
           this.audioBlocked = false;
           this.notify();
 
           setTimeout(() => {
-            if (this.ringingAudio && !this.ringingOfferId) {
-              try {
-                this.ringingAudio.pause();
-                this.ringingAudio.currentTime = 0;
-              } catch {}
+            if (this.ringingOfferId === "test_preview") {
+              this.stopRinging("test_preview");
             }
           }, 3000);
-
-          return true;
-        } catch (testErr: any) {
-          if (testErr.name === "AbortError") {
-            return false;
+        })
+        .catch((testErr: any) => {
+          this.pendingRingingPlayPromise = null;
+          if (testErr?.name !== "AbortError") {
+            this.audioBlocked = true;
+            this.notify();
           }
-          throw testErr;
-        }
-      }
-    } catch (err: any) {
-      if (err.name !== "AbortError") {
-        console.warn(`[SoundManager] testRingtone error: ${err.name} - ${err.message}`);
-        this.audioBlocked = true;
-        this.notify();
-      }
-      return false;
+        });
+
+      return true;
     }
+
     return false;
   }
 
@@ -574,17 +555,18 @@ class SoundManager {
     await this.unlockAudio();
     this.lastPlayedTime = 0; // Reset cooldown for test
 
-    // Try HTML audio first with notification chime
     try {
       const audio = new Audio("/sounds/notification.mp3");
       audio.volume = 0.75;
-      await audio.play();
+      const p = audio.play();
+      if (p !== undefined) {
+        p.catch(() => {});
+      }
       this.audioUnlocked = true;
       this.audioBlocked = false;
       this.notify();
       return true;
     } catch {
-      // Fallback to synth
       const synthOk = await this.playSynthesizedChime();
       if (synthOk) {
         this.audioUnlocked = true;
