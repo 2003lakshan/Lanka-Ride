@@ -14,6 +14,7 @@ interface NotificationToast {
   link?: string;
   category?: "admin" | "driver" | "system";
   bookingId?: string;
+  isRideAlert?: boolean;
   createdAt: number;
 }
 
@@ -23,6 +24,42 @@ const SILENT_NOTIFICATION_TYPES = new Set([
   "PACKAGE_ENQUIRY_SUBMITTED",
   "REGISTRATION_RECEIVED",
 ]);
+
+/**
+ * Determines whether a notification is an incoming ride or trip alert intended for drivers.
+ * Ride alerts ring with the physical ring bell rather than standard chimes.
+ */
+function isRideAlertNotification(notif: any, userRole?: string): boolean {
+  if (userRole !== "DRIVER") return false;
+  const type = String(notif?.type || "");
+  const title = String(notif?.title || "").toLowerCase();
+  const message = String(notif?.message || "").toLowerCase();
+  const link = String(notif?.link || "");
+
+  if (
+    type === "NEW_AVAILABLE_TRIP" ||
+    type === "NEW_PICKME_RIDE" ||
+    type === "RIDE_OFFER" ||
+    type === "BOOKING_AVAILABLE" ||
+    type === "LOCAL_RIDE"
+  ) {
+    return true;
+  }
+
+  if (
+    title.includes("ride available") ||
+    title.includes("trip available") ||
+    title.includes("new ride") ||
+    title.includes("new trip") ||
+    message.includes("ride available") ||
+    message.includes("available for acceptance") ||
+    link.includes("/driver")
+  ) {
+    return true;
+  }
+
+  return false;
+}
 
 interface NotificationSoundContextValue {
   soundEnabled: boolean;
@@ -57,6 +94,7 @@ export function NotificationSoundProvider({ children }: { children: React.ReactN
   const seenNotificationIds = useRef<Set<string>>(new Set());
   const isInitialPollDone = useRef<boolean>(false);
   const lastKnownNotificationTime = useRef<number>(Date.now());
+  const activeRideToastIdsRef = useRef<Set<string>>(new Set());
 
   // Subscribe to SoundManager state
   useEffect(() => {
@@ -69,21 +107,44 @@ export function NotificationSoundProvider({ children }: { children: React.ReactN
     });
   }, []);
 
+  const removeToast = useCallback((id: string) => {
+    setToasts((prev) => {
+      const target = prev.find((t) => t.id === id);
+      if (target?.isRideAlert || activeRideToastIdsRef.current.has(id)) {
+        activeRideToastIdsRef.current.delete(id);
+        soundManager.stopRinging(id);
+        if (typeof navigator !== "undefined" && navigator.vibrate) {
+          try {
+            navigator.vibrate(0);
+          } catch {}
+        }
+      }
+      return prev.filter((t) => t.id !== id);
+    });
+  }, []);
+
   const addToast = useCallback((toast: NotificationToast) => {
     setToasts((prev) => {
       const filtered = prev.filter((t) => t.id !== toast.id);
       return [toast, ...filtered.slice(0, 4)];
     });
 
-    // Auto dismiss after 10 seconds
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== toast.id));
-    }, 10000);
-  }, []);
+    if (toast.isRideAlert) {
+      activeRideToastIdsRef.current.add(toast.id);
+      soundManager.startRinging(toast.id);
+      if (typeof navigator !== "undefined" && navigator.vibrate) {
+        try {
+          navigator.vibrate([400, 250, 400, 250, 400]);
+        } catch {}
+      }
+    }
 
-  const removeToast = useCallback((id: string) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
-  }, []);
+    // Auto dismiss: 22s for ride offers (sufficient time to hear ringing & respond), 10s for general alerts
+    const dismissDurationMs = toast.isRideAlert ? 22000 : 10000;
+    setTimeout(() => {
+      removeToast(toast.id);
+    }, dismissDurationMs);
+  }, [removeToast]);
 
   // -------------------------------------------------------------
   // REALTIME WEBSOCKET EVENT LISTENERS
@@ -92,7 +153,6 @@ export function NotificationSoundProvider({ children }: { children: React.ReactN
     if (!socket || sessionStatus !== "authenticated" || !session?.user) return;
 
     const userRole = (session?.user as any)?.role;
-    const userId = (session?.user as any)?.id;
 
     // 1. Direct Notification Delivery
     const handleLiveNotification = (data: any) => {
@@ -108,17 +168,20 @@ export function NotificationSoundProvider({ children }: { children: React.ReactN
         new Date(notif.createdAt || Date.now()).getTime()
       );
 
-      // Only play notification chime for incoming notifications, keeping self-initiated confirmations silent
-      if (!SILENT_NOTIFICATION_TYPES.has(notif.type)) {
+      const isRide = isRideAlertNotification(notif, userRole);
+
+      // Ride offers trigger ringing bell in addToast. For general non-silent notifications, play standard chime
+      if (!isRide && !SILENT_NOTIFICATION_TYPES.has(notif.type)) {
         soundManager.playNotificationSound(notifId);
       }
 
       addToast({
         id: notifId,
-        title: notif.title || "New Notification",
+        title: notif.title || (isRide ? "New Ride Available!" : "New Notification"),
         message: notif.message || "",
-        link: notif.link,
+        link: notif.link || (isRide ? "/driver" : undefined),
         category: userRole === "ADMIN" ? "admin" : userRole === "DRIVER" ? "driver" : "system",
+        isRideAlert: isRide,
         createdAt: Date.now(),
       });
 
@@ -192,7 +255,7 @@ export function NotificationSoundProvider({ children }: { children: React.ReactN
       }
     };
 
-    // 5. Driver: Trip becomes available to eligible drivers
+    // 5. Driver: Trip becomes available to eligible drivers (Realtime Socket broadcast)
     const handleBookingAvailable = (data: any) => {
       if (userRole !== "DRIVER") return;
       const booking = data?.booking;
@@ -202,15 +265,14 @@ export function NotificationSoundProvider({ children }: { children: React.ReactN
       if (seenEventIds.current.has(eventId)) return;
       seenEventIds.current.add(eventId);
 
-      soundManager.playNotificationSound(eventId);
-
       addToast({
         id: eventId,
-        title: "New Trip Available",
-        message: `${booking.pickupAddress || 'Pickup'} → ${booking.destinationAddress || 'Dropoff'}. Tap to review and accept.`,
+        title: `New ${booking.vehicleCategory || "Ride"} Available!`,
+        message: `${booking.pickupAddress || "Pickup"} → ${booking.destinationAddress || "Dropoff"}. Tap to review and accept.`,
         link: `/driver`,
         category: "driver",
         bookingId: booking._id,
+        isRideAlert: true,
         createdAt: Date.now(),
       });
     };
@@ -227,7 +289,7 @@ export function NotificationSoundProvider({ children }: { children: React.ReactN
       addToast({
         id: eventId,
         title: "New Package Request",
-        message: `${data?.riderName || "A rider"} submitted an enquiry for your package "${data?.packageTitle || 'Tour Package'}".`,
+        message: `${data?.riderName || "A rider"} submitted an enquiry for your package "${data?.packageTitle || "Tour Package"}".`,
         link: `/driver/enquiries/${data?.enquiryId}`,
         category: "driver",
         createdAt: Date.now(),
@@ -253,7 +315,7 @@ export function NotificationSoundProvider({ children }: { children: React.ReactN
 
   // -------------------------------------------------------------
   // POLLING FALLBACK WHEN DISCONNECTED / OFFLINE
-  // Detects newly received notifications, deduplicates, and plays sound
+  // Detects newly received notifications, deduplicates, and rings bell for rides
   // -------------------------------------------------------------
   const pollNotifications = useCallback(async () => {
     if (sessionStatus !== "authenticated" || !session?.user) return;
@@ -296,17 +358,21 @@ export function NotificationSoundProvider({ children }: { children: React.ReactN
             new Date(notif.createdAt).getTime()
           );
 
-          // Trigger sound for incoming notifications (silent for self-initiated actions)
-          if (!SILENT_NOTIFICATION_TYPES.has(notif.type)) {
+          const isRide = isRideAlertNotification(notif, userRole);
+
+          // For ride alerts, addToast handles ringing bell and vibration.
+          // For other non-silent notifications, play standard chime.
+          if (!isRide && !SILENT_NOTIFICATION_TYPES.has(notif.type)) {
             soundManager.playNotificationSound(notif._id);
           }
 
           addToast({
             id: notif._id,
-            title: notif.title || "New Notification",
+            title: notif.title || (isRide ? "New Ride Available!" : "New Notification"),
             message: notif.message || "",
-            link: notif.link,
+            link: notif.link || (isRide ? "/driver" : undefined),
             category: userRole === "ADMIN" ? "admin" : userRole === "DRIVER" ? "driver" : "system",
+            isRideAlert: isRide,
             createdAt: Date.now(),
           });
         });
@@ -316,7 +382,7 @@ export function NotificationSoundProvider({ children }: { children: React.ReactN
           window.dispatchEvent(new CustomEvent("lar:notifications-updated"));
         }
       }
-    } catch (e) {
+    } catch {
       // Quietly ignore polling network glitches
     }
   }, [sessionStatus, session, addToast]);
@@ -359,12 +425,12 @@ export function NotificationSoundProvider({ children }: { children: React.ReactN
   // -------------------------------------------------------------
   const handleUnlockClick = async () => {
     await soundManager.unlockAudio();
-    await soundManager.testSound();
+    await soundManager.testRingtone();
     setDismissedUnlockBanner(true);
   };
 
   const handleTestClick = async () => {
-    await soundManager.testSound();
+    await soundManager.testRingtone();
   };
 
   const contextValue: NotificationSoundContextValue = {
@@ -373,42 +439,36 @@ export function NotificationSoundProvider({ children }: { children: React.ReactN
     audioBlocked: soundState.audioBlocked,
     setSoundEnabled: (enabled) => soundManager.setSoundEnabled(enabled),
     unlockAudio: () => soundManager.unlockAudio(),
-    testSound: () => soundManager.testSound(),
+    testSound: () => soundManager.testRingtone(),
   };
-
-  const showUnlockBanner =
-    sessionStatus === "authenticated" &&
-    soundState.soundEnabled &&
-    (!soundState.audioUnlocked || soundState.audioBlocked) &&
-    !dismissedUnlockBanner;
 
   return (
     <NotificationSoundContext.Provider value={contextValue}>
       {children}
 
-      {/* Persistent Audio Unlock / Blocked Notice Banner */}
-      {showUnlockBanner && (
+      {/* Sound Autoplay Unlock Banner (Non-intrusive bottom banner when audio is blocked) */}
+      {!soundState.audioUnlocked && !dismissedUnlockBanner && (
         <aside
-          role="alert"
+          role="status"
           aria-live="polite"
-          className="fixed bottom-4 left-4 right-4 sm:right-auto sm:max-w-md z-50 bg-slate-900/95 backdrop-blur-md text-white p-3.5 rounded-2xl shadow-2xl border border-slate-700 animate-in slide-in-from-bottom-4 duration-300 flex items-center justify-between gap-3"
+          className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-4 z-50 max-w-sm bg-slate-900/95 backdrop-blur-md text-white p-3.5 rounded-2xl shadow-2xl border border-slate-700/80 flex items-center justify-between gap-3 animate-in slide-in-from-bottom-4 duration-300 pointer-events-auto"
         >
-          <div className="flex items-center gap-2.5 min-w-0">
+          <div className="flex items-center gap-3 min-w-0">
             <div
-              className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow ${
-                soundState.audioBlocked ? "bg-amber-600 animate-pulse" : "bg-blue-600"
+              className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                soundState.audioBlocked ? "bg-amber-500 text-slate-950" : "bg-blue-600 text-white"
               }`}
             >
-              <Volume2 size={18} className="text-white" />
+              <Volume2 size={18} className={soundState.audioBlocked ? "text-slate-950" : "text-white"} />
             </div>
             <div className="min-w-0">
               <p className="text-xs font-bold text-slate-100 truncate">
-                {soundState.audioBlocked ? "Audio Autoplay Blocked" : "Notification Sounds"}
+                {soundState.audioBlocked ? "Audio Autoplay Blocked" : "Ride Sound Alerts"}
               </p>
               <p className="text-[11px] text-slate-300 line-clamp-1">
                 {soundState.audioBlocked
-                  ? "Tap to enable sound alerts on this device"
-                  : "Tap to enable real-time audio chimes"}
+                  ? "Tap to enable incoming ride ringing on this device"
+                  : "Tap to enable real-time ride ringtones"}
               </p>
             </div>
           </div>
@@ -426,11 +486,11 @@ export function NotificationSoundProvider({ children }: { children: React.ReactN
               type="button"
               onClick={handleTestClick}
               className="bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-slate-200 text-xs font-semibold px-2 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap touch-manipulation hidden sm:inline-flex items-center gap-1"
-              title="Test chime sound"
-              aria-label="Test chime sound"
+              title="Test ringtone bell"
+              aria-label="Test ringtone bell"
             >
               <Play size={10} className="fill-current" />
-              <span>Test</span>
+              <span>Test Ring</span>
             </button>
             <button
               type="button"
@@ -453,19 +513,27 @@ export function NotificationSoundProvider({ children }: { children: React.ReactN
           <div
             key={toast.id}
             role="status"
-            className="pointer-events-auto bg-white/98 backdrop-blur-xl rounded-2xl p-4 shadow-2xl border border-slate-200 hover:border-blue-400 transition-all animate-in slide-in-from-top-3 fade-in duration-200"
+            className={`pointer-events-auto rounded-2xl p-4 shadow-2xl transition-all animate-in slide-in-from-top-3 fade-in duration-200 ${
+              toast.isRideAlert
+                ? "bg-gradient-to-r from-amber-500/15 via-white to-amber-500/10 border-2 border-amber-500 shadow-amber-500/30"
+                : "bg-white/98 backdrop-blur-xl border border-slate-200 hover:border-blue-400"
+            }`}
           >
             <div className="flex items-start gap-3">
               <div
-                className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${
-                  toast.category === "admin"
+                className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${
+                  toast.isRideAlert
+                    ? "bg-amber-500 text-slate-950 animate-bounce"
+                    : toast.category === "admin"
                     ? "bg-purple-100 text-purple-700"
                     : toast.category === "driver"
                     ? "bg-blue-100 text-blue-700"
                     : "bg-emerald-100 text-emerald-700"
                 }`}
               >
-                {toast.category === "admin" ? (
+                {toast.isRideAlert ? (
+                  <Bell size={20} className="fill-current animate-pulse text-slate-950" />
+                ) : toast.category === "admin" ? (
                   <ShieldCheck size={20} />
                 ) : toast.category === "driver" ? (
                   <Car size={20} />
@@ -479,33 +547,51 @@ export function NotificationSoundProvider({ children }: { children: React.ReactN
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2">
                   <span
-                    className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                      toast.category === "admin"
+                    className={`text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                      toast.isRideAlert
+                        ? "bg-amber-500 text-slate-950 flex items-center gap-1 shadow-xs"
+                        : toast.category === "admin"
                         ? "bg-purple-50 text-purple-700 border border-purple-200"
                         : toast.category === "driver"
                         ? "bg-blue-50 text-blue-700 border border-blue-200"
                         : "bg-emerald-50 text-emerald-700 border border-emerald-200"
                     }`}
                   >
-                    {toast.category === "admin"
-                      ? "Admin Alert"
-                      : toast.category === "driver"
-                      ? "Driver Alert"
-                      : "New Alert"}
+                    {toast.isRideAlert ? (
+                      <>
+                        <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-ping inline-block" />
+                        Ringing • Ride Alert
+                      </>
+                    ) : toast.category === "admin" ? (
+                      "Admin Alert"
+                    ) : toast.category === "driver" ? (
+                      "Driver Alert"
+                    ) : (
+                      "New Alert"
+                    )}
                   </span>
                   <button
                     onClick={() => removeToast(toast.id)}
-                    className="text-slate-400 hover:text-slate-600 p-1 rounded-md cursor-pointer"
+                    className="text-slate-400 hover:text-slate-700 p-1 rounded-md cursor-pointer"
                     aria-label="Dismiss alert"
                   >
                     <X size={15} />
                   </button>
                 </div>
 
-                <h4 className="font-bold text-sm text-slate-900 mt-1">{toast.title}</h4>
+                <h4 className="font-extrabold text-sm text-slate-900 mt-1">{toast.title}</h4>
                 <p className="text-xs text-slate-600 mt-0.5 line-clamp-2">{toast.message}</p>
 
-                {toast.link && (
+                {toast.isRideAlert ? (
+                  <Link
+                    href={toast.link || "/driver"}
+                    onClick={() => removeToast(toast.id)}
+                    className="inline-flex items-center justify-center gap-1.5 w-full mt-2.5 py-2 px-3 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl text-xs font-extrabold shadow-sm transition-all cursor-pointer"
+                  >
+                    <span>Accept & View Ride</span>
+                    <ExternalLink size={13} />
+                  </Link>
+                ) : toast.link ? (
                   <Link
                     href={toast.link}
                     onClick={() => removeToast(toast.id)}
@@ -513,7 +599,7 @@ export function NotificationSoundProvider({ children }: { children: React.ReactN
                   >
                     View Details <ExternalLink size={12} />
                   </Link>
-                )}
+                ) : null}
               </div>
             </div>
           </div>

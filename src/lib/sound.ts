@@ -36,6 +36,7 @@ class SoundManager {
   private ringingOfferId: string | null = null;
   private isRingingRequested: boolean = false;
   private pendingRingingPlayPromise: Promise<void> | null = null;
+  private synthRingingInterval: any = null;
 
   constructor() {
     if (typeof window !== "undefined") {
@@ -193,6 +194,12 @@ class SoundManager {
         this.ringingAudio
       );
       this.audioBlocked = false;
+
+      // If a ride ringing was waiting for user gesture unlock, start ringing immediately
+      if (this.isRingingRequested && this.ringingOfferId) {
+        this.startRinging(this.ringingOfferId);
+      }
+
       this.notify();
       return true;
     } catch (err) {
@@ -264,6 +271,31 @@ class SoundManager {
       return true;
     } catch {
       return false;
+    }
+  }
+
+  /**
+   * Starts repeating synthesized ringing chime when HTMLAudioElement is blocked by browser autoplay policy.
+   */
+  public startSynthesizedRinging() {
+    if (this.synthRingingInterval) return;
+    this.playSynthesizedChime().catch(() => {});
+    this.synthRingingInterval = setInterval(() => {
+      if (!this.isRingingRequested) {
+        this.stopSynthesizedRinging();
+        return;
+      }
+      this.playSynthesizedChime().catch(() => {});
+    }, 1200);
+  }
+
+  /**
+   * Stops synthesized ringing chimes.
+   */
+  public stopSynthesizedRinging() {
+    if (this.synthRingingInterval) {
+      clearInterval(this.synthRingingInterval);
+      this.synthRingingInterval = null;
     }
   }
 
@@ -438,6 +470,7 @@ class SoundManager {
       playPromise
         .then(() => {
           this.pendingRingingPlayPromise = null;
+          this.stopSynthesizedRinging();
           this.audioUnlocked = true;
           this.audioBlocked = false;
           this.notify();
@@ -459,7 +492,10 @@ class SoundManager {
           if (playErr?.name === "NotAllowedError") {
             this.audioBlocked = true;
             this.notify();
-            console.warn("[SoundManager] Autoplay blocked for incoming trip ringtone. User gesture required.");
+            console.warn("[SoundManager] Autoplay blocked for incoming trip ringtone. Using synthesized bell fallback.");
+            if (this.isRingingRequested) {
+              this.startSynthesizedRinging();
+            }
             return;
           }
           console.warn("[SoundManager] ringingAudio.play() deferred:", playErr?.message);
@@ -482,6 +518,7 @@ class SoundManager {
 
     this.isRingingRequested = false;
     this.ringingOfferId = null;
+    this.stopSynthesizedRinging();
 
     const audio = this.ringingAudio;
     if (audio) {
