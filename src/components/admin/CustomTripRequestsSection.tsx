@@ -23,9 +23,22 @@ export default function CustomTripRequestsSection({ customTrips }: { customTrips
   }, [customTrips]);
 
   useEffect(() => {
-    return registerReconnectHandler(() => {
-      router.refresh();
+    let mounted = true;
+    const unregister = registerReconnectHandler(() => {
+      if (!mounted) return;
+      setTimeout(() => {
+        if (!mounted) return;
+        try {
+          router.refresh();
+        } catch (e) {
+          console.warn("[AdminCustomTrips] Reconnect refresh skipped:", e);
+        }
+      }, 50);
     });
+    return () => {
+      mounted = false;
+      unregister();
+    };
   }, [registerReconnectHandler, router]);
 
   useEffect(() => {

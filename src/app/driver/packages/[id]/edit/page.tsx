@@ -93,10 +93,14 @@ export default function EditPackagePage() {
     }
   };
 
-  if (status === "loading" || loading) return <div className="min-h-screen bg-slate-50 flex items-center justify-center">Loading...</div>;
-  if (status === "unauthenticated") {
-    router.push("/login");
-    return null;
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.push("/login");
+    }
+  }, [status, router]);
+
+  if (status === "loading" || loading || status === "unauthenticated") {
+    return <div className="min-h-screen bg-slate-50 flex items-center justify-center">Loading...</div>;
   }
 
   return (

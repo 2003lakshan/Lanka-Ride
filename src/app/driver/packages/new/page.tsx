@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Package, MapPin, Calendar, Users, DollarSign, Image as ImageIcon } from "lucide-react";
@@ -72,10 +72,14 @@ export default function CreatePackagePage() {
     }
   };
 
-  if (status === "loading") return <div className="min-h-screen bg-slate-50 flex items-center justify-center">Loading...</div>;
-  if (status === "unauthenticated") {
-    router.push("/login");
-    return null;
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.push("/login");
+    }
+  }, [status, router]);
+
+  if (status === "loading" || status === "unauthenticated") {
+    return <div className="min-h-screen bg-slate-50 flex items-center justify-center">Loading...</div>;
   }
 
   return (

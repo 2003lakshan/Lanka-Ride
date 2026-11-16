@@ -43,9 +43,22 @@ export default function EnquiryChat({ enquiryId, initialMessages, currentUserRol
 
   // Re-fetch on reconnect
   useEffect(() => {
-    return registerReconnectHandler(() => {
-      router.refresh();
+    let mounted = true;
+    const unregister = registerReconnectHandler(() => {
+      if (!mounted) return;
+      setTimeout(() => {
+        if (!mounted) return;
+        try {
+          router.refresh();
+        } catch (e) {
+          console.warn("[EnquiryChat] Reconnect refresh skipped:", e);
+        }
+      }, 50);
     });
+    return () => {
+      mounted = false;
+      unregister();
+    };
   }, [registerReconnectHandler, router]);
 
   // Realtime message listener
@@ -87,7 +100,11 @@ export default function EnquiryChat({ enquiryId, initialMessages, currentUserRol
     if (isConnected) return; // Realtime active; disable polling
 
     const interval = setInterval(() => {
-      router.refresh();
+      try {
+        router.refresh();
+      } catch (e) {
+        console.warn("[EnquiryChat] Polling refresh skipped:", e);
+      }
     }, 5000);
     return () => clearInterval(interval);
   }, [isConnected, router]);

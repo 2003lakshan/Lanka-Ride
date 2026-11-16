@@ -181,9 +181,22 @@ export default function DriverDashboardClient({
 
   // Re-fetch on reconnect
   useEffect(() => {
-    return registerReconnectHandler(() => {
-      router.refresh();
+    let mounted = true;
+    const unregister = registerReconnectHandler(() => {
+      if (!mounted) return;
+      setTimeout(() => {
+        if (!mounted) return;
+        try {
+          router.refresh();
+        } catch (e) {
+          console.warn("[DriverDashboard] Reconnect refresh skipped:", e);
+        }
+      }, 50);
     });
+    return () => {
+      mounted = false;
+      unregister();
+    };
   }, [registerReconnectHandler, router]);
 
   // Reset pagination when typing search
@@ -425,7 +438,11 @@ export default function DriverDashboardClient({
     if (isConnected) return;
 
     const interval = setInterval(() => {
-      router.refresh();
+      try {
+        router.refresh();
+      } catch (e) {
+        console.warn("[DriverDashboard] Polling refresh skipped:", e);
+      }
     }, 20000);
     return () => clearInterval(interval);
   }, [isConnected, router]);

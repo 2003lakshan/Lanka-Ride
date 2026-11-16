@@ -30,9 +30,22 @@ export default function MyBookingsClient({ initialBookings, initialEnquiries }: 
 
   // Re-fetch on reconnect
   useEffect(() => {
-    return registerReconnectHandler(() => {
-      router.refresh();
+    let mounted = true;
+    const unregister = registerReconnectHandler(() => {
+      if (!mounted) return;
+      setTimeout(() => {
+        if (!mounted) return;
+        try {
+          router.refresh();
+        } catch (e) {
+          console.warn("[MyBookings] Reconnect refresh skipped:", e);
+        }
+      }, 50);
     });
+    return () => {
+      mounted = false;
+      unregister();
+    };
   }, [registerReconnectHandler, router]);
 
   // Realtime updates for rider's bookings

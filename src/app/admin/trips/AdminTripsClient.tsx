@@ -78,9 +78,22 @@ export default function AdminTripsClient({ initialBookings }: { initialBookings:
   }, [initialBookings]);
 
   useEffect(() => {
-    return registerReconnectHandler(() => {
-      router.refresh();
+    let mounted = true;
+    const unregister = registerReconnectHandler(() => {
+      if (!mounted) return;
+      setTimeout(() => {
+        if (!mounted) return;
+        try {
+          router.refresh();
+        } catch (e) {
+          console.warn("[AdminTrips] Reconnect refresh skipped:", e);
+        }
+      }, 50);
     });
+    return () => {
+      mounted = false;
+      unregister();
+    };
   }, [registerReconnectHandler, router]);
 
   // Reset pagination when filters change

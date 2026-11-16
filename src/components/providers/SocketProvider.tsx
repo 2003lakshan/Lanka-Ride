@@ -183,14 +183,17 @@ export function SocketProvider({ children }: SocketProviderProps) {
         newSocket.on("reconnect", () => {
           setConnectionState("connected");
           console.log("[Realtime] Reconnected. Recovering missed state...");
-          // Invoke all registered reconnect recovery handlers
-          reconnectHandlersRef.current.forEach((handler) => {
-            try {
-              handler();
-            } catch (e) {
-              console.error("[Realtime] Error executing reconnect handler:", e);
-            }
-          });
+          // Defer invocation to allow React and Next.js AppRouter to complete mount/hydration
+          setTimeout(() => {
+            if (isCancelled) return;
+            reconnectHandlersRef.current.forEach((handler) => {
+              try {
+                handler();
+              } catch (e) {
+                console.warn("[Realtime] Error executing reconnect handler:", e);
+              }
+            });
+          }, 300);
         });
 
         newSocket.on("reconnecting", () => {
