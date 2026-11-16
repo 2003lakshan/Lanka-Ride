@@ -22,6 +22,7 @@ export default function ProfileClient({ initialUser, sessionHasPassword }: { ini
     profilePhoto: initialUser.profilePhoto || "",
     
     // Driver fields
+    vehicleCategory: initialUser.vehicleCategory || initialUser.driverDetails?.vehicleCategory || "Car",
     licenseNumber: initialUser.licenseNumber || "",
     vehicleRegistration: initialUser.vehicleRegistration || "",
     vehicleMake: initialUser.driverDetails?.vehicleMake || "",
@@ -75,6 +76,7 @@ export default function ProfileClient({ initialUser, sessionHasPassword }: { ini
       };
 
       if (isDriver) {
+        payload.vehicleCategory = formData.vehicleCategory;
         payload.licenseNumber = formData.licenseNumber;
         payload.vehicleRegistration = formData.vehicleRegistration;
         payload.driverDetails = {
@@ -366,6 +368,22 @@ export default function ProfileClient({ initialUser, sessionHasPassword }: { ini
                     className="w-1/2 px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
                   />
                 </div>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">Driving Vehicle Category</label>
+                <select
+                  name="vehicleCategory"
+                  value={formData.vehicleCategory}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-medium bg-white"
+                >
+                  <option value="Car">Car (Sedan / Hatchback)</option>
+                  <option value="Mini Van">Mini Van</option>
+                  <option value="Three-wheeler">Three-wheeler (Tuk-Tuk)</option>
+                  <option value="Bike">Bike</option>
+                  <option value="Van">Van (Passenger)</option>
+                  <option value="Lorry">Lorry (Goods Transport)</option>
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-2">Vehicle Registration Plate</label>

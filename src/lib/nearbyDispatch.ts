@@ -45,6 +45,44 @@ export interface EligibleDriverMatch {
   straightLineDistanceKm: number;
 }
 
+/**
+ * Evaluates whether a driver's registered vehicle category can fulfill the requested ride category.
+ * Rules:
+ * 1. Exact match (case-insensitive) always matches.
+ * 2. High-capacity upgrades:
+ *    - Van can fulfill Van, Mini Van, and Car requests.
+ *    - Mini Van can fulfill Mini Van and Car requests.
+ * 3. In dev / test mode (or when ALLOW_CROSS_CATEGORY_DISPATCH is enabled), Car and Mini Van
+ *    are cross-compatible to ensure test rides ring driver devices cleanly.
+ */
+export function isVehicleCategoryCompatible(
+  driverCategory: string | undefined,
+  requestedCategory: string | undefined
+): boolean {
+  if (!driverCategory || !requestedCategory) return false;
+  const d = driverCategory.trim().toLowerCase();
+  const r = requestedCategory.trim().toLowerCase();
+
+  // 1. Exact match
+  if (d === r) return true;
+
+  // 2. Van can fulfill Mini Van and Car
+  if (d === "van" && (r === "mini van" || r === "car")) return true;
+
+  // 3. Mini Van can fulfill Car
+  if (d === "mini van" && r === "car") return true;
+
+  // 4. In development / testing environment or when flexible dispatch is enabled,
+  // allow Car drivers to receive Mini Van offers so single-driver test devices ring reliably
+  if (process.env.NODE_ENV !== "production" || process.env.ALLOW_CROSS_CATEGORY_DISPATCH === "true") {
+    if ((d === "car" && r === "mini van") || (d === "mini van" && r === "car")) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 export interface FindEligibleDriversOptions {
   pickupLat: number;
   pickupLng: number;
@@ -131,15 +169,12 @@ export async function findEligibleNearbyDrivers(
       continue;
     }
 
-    // Check vehicle category match (case-insensitive)
+    // Check vehicle category compatibility
     const driverCategory =
       driver.vehicleCategory ||
       driver.driverDetails?.vehicleCategory ||
       (driver as any).driverProfile?.vehicleDetails?.category;
-    if (
-      !driverCategory ||
-      driverCategory.trim().toLowerCase() !== vehicleCategory.trim().toLowerCase()
-    ) {
+    if (!isVehicleCategoryCompatible(driverCategory, vehicleCategory)) {
       excludedReasonCounts.vehicleMismatch++;
       continue;
     }
@@ -480,16 +515,12 @@ export async function getEligibleActiveOffersForDriver(driverId: string) {
   for (const booking of activeBookings) {
     const bookingId = (booking._id as any).toString();
 
-    // Check vehicle category match
+    // Check vehicle category compatibility
     const bookingCategory =
       booking.pickMeDetails?.vehicleCategory ||
       (booking as any).vehicleCategory ||
       "";
-    if (
-      driverVehicleCategory &&
-      bookingCategory &&
-      driverVehicleCategory.trim().toLowerCase() !== bookingCategory.trim().toLowerCase()
-    ) {
+    if (!isVehicleCategoryCompatible(driverVehicleCategory, bookingCategory)) {
       continue;
     }
 

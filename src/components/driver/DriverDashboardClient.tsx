@@ -60,11 +60,40 @@ export default function DriverDashboardClient({
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [soundState, setSoundState] = useState<SoundState>(soundManager.getState());
+  const [activeCategory, setActiveCategory] = useState<string>(driverVehicleCategory || "Car");
+  const [isSwitchingCategory, setIsSwitchingCategory] = useState<boolean>(false);
   const itemsPerPage = 6;
   
   const router = useRouter();
   const processedEventIds = useRef<Set<string>>(new Set());
   const driverOffers = useDriverOffers();
+
+  useEffect(() => {
+    if (driverVehicleCategory) {
+      setActiveCategory(driverVehicleCategory);
+    }
+  }, [driverVehicleCategory]);
+
+  const handleCategoryChange = async (newCat: string) => {
+    setActiveCategory(newCat);
+    setIsSwitchingCategory(true);
+    try {
+      const res = await fetch("/api/driver/vehicle-category", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vehicleCategory: newCat }),
+      });
+      if (res.ok) {
+        setNewTripAlert(`Vehicle mode switched to ${newCat}. Listening for ${newCat} rides...`);
+        setTimeout(() => setNewTripAlert(null), 4000);
+        await driverOffers?.refreshActiveOffers();
+      }
+    } catch (e) {
+      console.error("Failed to switch vehicle category", e);
+    } finally {
+      setIsSwitchingCategory(false);
+    }
+  };
 
   // Unified global driver status & location methods from DriverOfferProvider
   const isDriverOnline = driverOffers?.isDriverOnline ?? true;
@@ -531,6 +560,24 @@ export default function DriverDashboardClient({
           <p className="text-slate-600">View upcoming assignments, manage active rides, and accept incoming ride offers.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {/* Active Vehicle Category Switcher */}
+          <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-2.5 py-2 shadow-xs" title="Change your active driving vehicle category">
+            <Car size={14} className="text-blue-600 shrink-0" />
+            <select
+              value={activeCategory}
+              disabled={isSwitchingCategory}
+              onChange={(e) => handleCategoryChange(e.target.value)}
+              className="text-xs font-bold text-slate-800 bg-transparent border-none outline-none cursor-pointer pr-1"
+            >
+              <option value="Car">🚗 Car</option>
+              <option value="Mini Van">🚐 Mini Van</option>
+              <option value="Three-wheeler">🛺 Three-wheeler</option>
+              <option value="Bike">🏍️ Bike</option>
+              <option value="Van">🚌 Van</option>
+              <option value="Lorry">🚛 Lorry</option>
+            </select>
+          </div>
+
           {/* Driver Online Status Switch */}
           <button
             type="button"

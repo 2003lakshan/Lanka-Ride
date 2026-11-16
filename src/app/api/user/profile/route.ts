@@ -90,6 +90,12 @@ export async function PUT(request: Request) {
         user.vehicleRegistration = vehicleRegistration;
         sensitiveDocsChanged = true;
       }
+
+      if (data.vehicleCategory !== undefined) {
+        user.vehicleCategory = data.vehicleCategory;
+        if (!user.driverDetails) user.driverDetails = {};
+        user.driverDetails.vehicleCategory = data.vehicleCategory;
+      }
       
       if (driverDetails) {
         // Check if sensitive driver details changed

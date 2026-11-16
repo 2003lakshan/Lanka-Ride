@@ -57,14 +57,24 @@ export default function IncomingTripModal({
     return soundManager.subscribe(setSoundState);
   }, []);
 
-  // Start continuous ringing chime when modal appears
+  // Start continuous ringing chime and haptic feedback when modal appears
   useEffect(() => {
     if (bookingId && !isDevPreview) {
       soundManager.startRinging(bookingId);
+      if (typeof navigator !== "undefined" && navigator.vibrate) {
+        try {
+          navigator.vibrate([400, 250, 400, 250, 400]);
+        } catch {}
+      }
     }
     return () => {
       if (bookingId && !isDevPreview) {
         soundManager.stopRinging(bookingId);
+        if (typeof navigator !== "undefined" && navigator.vibrate) {
+          try {
+            navigator.vibrate(0);
+          } catch {}
+        }
       }
     };
   }, [bookingId, isDevPreview]);

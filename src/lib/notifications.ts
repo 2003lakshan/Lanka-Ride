@@ -92,15 +92,31 @@ export async function notifyAdmins(options: Omit<NotificationOptions, "recipient
 }
 
 /**
- * Sends a notification to all active/eligible DRIVER users.
+ * Sends a notification to all active/eligible DRIVER users matching vehicle category.
  */
-export async function notifyEligibleDrivers(options: Omit<NotificationOptions, "recipientId">) {
+export async function notifyEligibleDrivers(
+  options: Omit<NotificationOptions, "recipientId"> & { vehicleCategory?: string }
+) {
   try {
     await dbConnect();
-    // Eligible means they are approved drivers
-    const drivers = await User.find({ role: "DRIVER", isApproved: true }).select("_id").lean();
-    
+    // Eligible means approved drivers
+    const drivers = await User.find({ role: "DRIVER", isApproved: true })
+      .select("_id vehicleCategory driverDetails driverProfile")
+      .lean();
+
+    const { isVehicleCategoryCompatible } = await import("@/lib/nearbyDispatch");
+
     for (const driver of drivers) {
+      if (options.vehicleCategory) {
+        const dCat =
+          driver.vehicleCategory ||
+          driver.driverDetails?.vehicleCategory ||
+          (driver as any).driverProfile?.vehicleDetails?.category;
+        if (!isVehicleCategoryCompatible(dCat, options.vehicleCategory)) {
+          continue;
+        }
+      }
+
       const dedupKey = options.deduplicationKey ? `${options.deduplicationKey}_drv_${driver._id.toString()}` : undefined;
       
       await sendNotification({

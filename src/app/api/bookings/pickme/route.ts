@@ -285,6 +285,7 @@ export async function POST(request: Request) {
         message: `New ${vehicleCategory} ride (${route.distanceKm} km${stopsLabel}, LKR ${estimatedFare.toLocaleString()}) available for acceptance.`,
         link: `/driver`,
         deduplicationKey: `pkm_submit_drv_${booking._id.toString()}`,
+        vehicleCategory,
       });
     }).catch(console.error);
 
