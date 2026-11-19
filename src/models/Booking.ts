@@ -139,6 +139,19 @@ export interface ICustomTripDetails {
   itinerary?: ICustomTripDay[];
   confirmedAmount?: number;
   confirmedCurrency?: "LKR" | "USD" | "EUR" | "GBP";
+  bookingContact?: {
+    fullName: string;
+    country: string;
+    email: string;
+    phone: string;
+    isBookingForSomeoneElse: boolean;
+    passenger?: {
+      fullName: string;
+      phone: string;
+    };
+    confirmedAccuracy: boolean;
+    verifiedAt?: Date;
+  };
 }
 
 export interface IBooking extends Document {
@@ -321,7 +334,20 @@ const CustomTripDetailsSchema = new Schema({
   dropoffTime: { type: String },
   itinerary: [CustomTripDaySchema],
   confirmedAmount: { type: Number },
-  confirmedCurrency: { type: String, enum: ["LKR", "USD", "EUR", "GBP"], default: "USD" }
+  confirmedCurrency: { type: String, enum: ["LKR", "USD", "EUR", "GBP"], default: "USD" },
+  bookingContact: {
+    fullName: { type: String },
+    country: { type: String },
+    email: { type: String },
+    phone: { type: String },
+    isBookingForSomeoneElse: { type: Boolean, default: false },
+    passenger: {
+      fullName: { type: String },
+      phone: { type: String },
+    },
+    confirmedAccuracy: { type: Boolean, default: false },
+    verifiedAt: { type: Date },
+  },
 }, { _id: false });
 
 const BookingSchema: Schema = new Schema(

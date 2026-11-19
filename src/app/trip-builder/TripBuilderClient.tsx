@@ -1,11 +1,39 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Calendar, Users, Briefcase, Car, DollarSign, MapPin, Plane, Plus, Trash2, ChevronRight, ChevronLeft, Check, Save, AlertCircle } from "lucide-react";
+import {
+  Calendar,
+  Users,
+  Briefcase,
+  Car,
+  DollarSign,
+  MapPin,
+  Plane,
+  Plus,
+  Trash2,
+  ChevronRight,
+  ChevronLeft,
+  Check,
+  Save,
+  AlertCircle,
+  ShieldCheck,
+  Mail,
+  Phone,
+  Globe,
+  CheckCircle2,
+  Lock,
+  RefreshCw,
+  Send,
+  User,
+  UserCheck,
+  Sparkles,
+} from "lucide-react";
 import PlacesAutocompleteInput, { LocationState } from "@/components/booking/PlacesAutocompleteInput";
 import MapLocationPicker from "@/components/booking/MapLocationPicker";
 import ItineraryRouteSummary from "@/components/booking/ItineraryRouteSummary";
+import CountrySelect from "@/components/booking/CountrySelect";
+import PhoneInputWithCountry from "@/components/booking/PhoneInputWithCountry";
 import { formatSriLankanDate } from "@/lib/dateTime";
 
 interface VehicleType {
@@ -25,13 +53,135 @@ type TripDay = {
   notes: string;
 };
 
-export default function TripBuilderClient({ vehicleTypes, initialData }: { vehicleTypes: VehicleType[], initialData?: any }) {
+interface TripBuilderClientProps {
+  vehicleTypes: VehicleType[];
+  initialData?: any;
+  currentUserProfile?: {
+    name?: string;
+    email?: string;
+    phoneNumber?: string;
+    nationality?: string;
+    isEmailVerified?: boolean;
+    isPhoneVerified?: boolean;
+  } | null;
+}
+
+export default function TripBuilderClient({
+  vehicleTypes,
+  initialData,
+  currentUserProfile,
+}: TripBuilderClientProps) {
   const router = useRouter();
+
+  // Step state: 1: Details, 2: Basics, 3: Logistics, 4: Itinerary, 5: Review
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Step 1: Basics
+  // =========================================================
+  // STEP 1: Your Details & Verification
+  // =========================================================
+  const existingContact = initialData?.customTripDetails?.bookingContact;
+
+  const [contactFullName, setContactFullName] = useState<string>(
+    existingContact?.fullName || currentUserProfile?.name || ""
+  );
+  const [contactCountry, setContactCountry] = useState<string>(
+    existingContact?.country || currentUserProfile?.nationality || "Sri Lanka"
+  );
+  const [contactEmail, setContactEmail] = useState<string>(
+    existingContact?.email || currentUserProfile?.email || ""
+  );
+  const [contactPhone, setContactPhone] = useState<string>(
+    existingContact?.phone || currentUserProfile?.phoneNumber || ""
+  );
+
+  // Exact verified values bound to the user session
+  const [verifiedEmailValue, setVerifiedEmailValue] = useState<string | null>(() => {
+    if (existingContact?.email) return existingContact.email.toLowerCase().trim();
+    if (currentUserProfile?.isEmailVerified && currentUserProfile.email) {
+      return currentUserProfile.email.toLowerCase().trim();
+    }
+    return null;
+  });
+
+  const [verifiedPhoneValue, setVerifiedPhoneValue] = useState<string | null>(() => {
+    if (existingContact?.phone) return existingContact.phone.trim();
+    if (currentUserProfile?.isPhoneVerified && currentUserProfile.phoneNumber) {
+      return currentUserProfile.phoneNumber.trim();
+    }
+    return null;
+  });
+
+  const [emailVerificationToken, setEmailVerificationToken] = useState<string | null>(null);
+  const [phoneVerificationToken, setPhoneVerificationToken] = useState<string | null>(null);
+
+  // Booking for someone else state
+  const [isBookingForSomeoneElse, setIsBookingForSomeoneElse] = useState<boolean>(
+    Boolean(existingContact?.isBookingForSomeoneElse)
+  );
+  const [passengerFullName, setPassengerFullName] = useState<string>(
+    existingContact?.passenger?.fullName || ""
+  );
+  const [passengerPhone, setPassengerPhone] = useState<string>(
+    existingContact?.passenger?.phone || ""
+  );
+
+  // Accuracy confirmation checkbox
+  const [confirmedAccuracy, setConfirmedAccuracy] = useState<boolean>(
+    Boolean(existingContact?.confirmedAccuracy)
+  );
+
+  // Dynamic verification binding check:
+  // If the rider edits the verified email or phone, isEmailVerified / isPhoneVerified flips to false immediately!
+  const isEmailVerified = useMemo(() => {
+    if (!verifiedEmailValue || !contactEmail.trim()) return false;
+    return verifiedEmailValue.toLowerCase().trim() === contactEmail.toLowerCase().trim();
+  }, [verifiedEmailValue, contactEmail]);
+
+  const isPhoneVerified = useMemo(() => {
+    if (!verifiedPhoneValue || !contactPhone.trim()) return false;
+    const cleanCurrent = contactPhone.replace(/[^\d+]/g, "");
+    const cleanVerified = verifiedPhoneValue.replace(/[^\d+]/g, "");
+    return cleanCurrent === cleanVerified && cleanCurrent.length >= 7;
+  }, [verifiedPhoneValue, contactPhone]);
+
+  // Email verification action UI states
+  const [emailOtpSent, setEmailOtpSent] = useState(false);
+  const [emailOtpInput, setEmailOtpInput] = useState("");
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailVerifying, setEmailVerifying] = useState(false);
+  const [emailCooldown, setEmailCooldown] = useState(0);
+  const [emailError, setEmailError] = useState("");
+  const [emailSuccessMsg, setEmailSuccessMsg] = useState("");
+  const [emailDevMockCode, setEmailDevMockCode] = useState<string | null>(null);
+
+  // Phone verification action UI states
+  const [phoneOtpSent, setPhoneOtpSent] = useState(false);
+  const [phoneOtpInput, setPhoneOtpInput] = useState("");
+  const [phoneSending, setPhoneSending] = useState(false);
+  const [phoneVerifying, setPhoneVerifying] = useState(false);
+  const [phoneCooldown, setPhoneCooldown] = useState(0);
+  const [phoneError, setPhoneError] = useState("");
+  const [phoneSuccessMsg, setPhoneSuccessMsg] = useState("");
+  const [phoneDevMockCode, setPhoneDevMockCode] = useState<string | null>(null);
+
+  // Countdown timers for resend cooldowns
+  useEffect(() => {
+    if (emailCooldown <= 0) return;
+    const t = setInterval(() => setEmailCooldown((c) => Math.max(0, c - 1)), 1000);
+    return () => clearInterval(t);
+  }, [emailCooldown]);
+
+  useEffect(() => {
+    if (phoneCooldown <= 0) return;
+    const t = setInterval(() => setPhoneCooldown((c) => Math.max(0, c - 1)), 1000);
+    return () => clearInterval(t);
+  }, [phoneCooldown]);
+
+  // =========================================================
+  // STEP 2: Basics
+  // =========================================================
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [adults, setAdults] = useState(2);
@@ -44,7 +194,9 @@ export default function TripBuilderClient({ vehicleTypes, initialData }: { vehic
   const [budgetFlexibility, setBudgetFlexibility] = useState("Negotiable");
   const [budgetNotes, setBudgetNotes] = useState("");
 
-  // Step 2: Logistics
+  // =========================================================
+  // STEP 3: Logistics
+  // =========================================================
   const [pickupLocation, setPickupLocation] = useState<LocationState | null>(null);
   const [pickupTime, setPickupTime] = useState("");
   const [pickupFlight, setPickupFlight] = useState("");
@@ -52,35 +204,44 @@ export default function TripBuilderClient({ vehicleTypes, initialData }: { vehic
   const [dropoffTime, setDropoffTime] = useState("");
   const [dropoffFlight, setDropoffFlight] = useState("");
 
-  // Step 3: Itinerary
+  // =========================================================
+  // STEP 4: Itinerary
+  // =========================================================
   const [itinerary, setItinerary] = useState<TripDay[]>([]);
   const [routeData, setRouteData] = useState<any>(null);
 
+  // Prefill from initialData
   useEffect(() => {
     if (initialData?.customTripDetails?.itinerary) {
       const mappedItinerary = initialData.customTripDetails.itinerary.map((day: any) => ({
         ...day,
-        startingLocation: day.startingLocation ? {
-          address: day.startingLocation.address || "",
-          lat: day.startingLocation.lat || 0,
-          lng: day.startingLocation.lng || 0,
-          source: 'local'
-        } : null,
-        overnightLocation: day.overnightLocation ? {
-          address: day.overnightLocation.hotel || day.overnightLocation.city || "",
-          lat: day.overnightLocation.lat || 0,
-          lng: day.overnightLocation.lng || 0,
-          source: 'local'
-        } : null,
-        placesToVisit: day.placesToVisit ? day.placesToVisit.map((p: any) => ({
-          location: {
-            address: p.name || "",
-            lat: p.lat || 0,
-            lng: p.lng || 0,
-            source: 'local'
-          },
-          activityTime: p.activityTime
-        })) : []
+        startingLocation: day.startingLocation
+          ? {
+              address: day.startingLocation.address || "",
+              lat: day.startingLocation.lat || 0,
+              lng: day.startingLocation.lng || 0,
+              source: "local",
+            }
+          : null,
+        overnightLocation: day.overnightLocation
+          ? {
+              address: day.overnightLocation.hotel || day.overnightLocation.city || "",
+              lat: day.overnightLocation.lat || 0,
+              lng: day.overnightLocation.lng || 0,
+              source: "local",
+            }
+          : null,
+        placesToVisit: day.placesToVisit
+          ? day.placesToVisit.map((p: any) => ({
+              location: {
+                address: p.name || "",
+                lat: p.lat || 0,
+                lng: p.lng || 0,
+                source: "local",
+              },
+              activityTime: p.activityTime,
+            }))
+          : [],
       }));
       setItinerary(mappedItinerary);
     }
@@ -88,23 +249,49 @@ export default function TripBuilderClient({ vehicleTypes, initialData }: { vehic
 
   useEffect(() => {
     if (initialData) {
-      if (initialData.arrivalDate) setStartDate(new Date(initialData.arrivalDate).toISOString().split('T')[0]);
-      if (initialData.customTripDetails?.endDate) setEndDate(new Date(initialData.customTripDetails.endDate).toISOString().split('T')[0]);
+      if (initialData.arrivalDate) {
+        setStartDate(new Date(initialData.arrivalDate).toISOString().split("T")[0]);
+      }
+      if (initialData.customTripDetails?.endDate) {
+        setEndDate(new Date(initialData.customTripDetails.endDate).toISOString().split("T")[0]);
+      }
       setAdults(initialData.passengerDetails?.adults || 2);
       setChildren(initialData.passengerDetails?.children || 0);
       setLuggage(initialData.passengerDetails?.luggage || 2);
       setVehicleTypeId(initialData.vehicleTypeId || "");
       setBudget(initialData.customTripDetails?.budget?.toString() || "");
-      if (initialData.customTripDetails?.budgetCurrency) setBudgetCurrency(initialData.customTripDetails.budgetCurrency);
-      if (initialData.customTripDetails?.budgetCovers) setBudgetCovers(initialData.customTripDetails.budgetCovers);
-      if (initialData.customTripDetails?.budgetFlexibility) setBudgetFlexibility(initialData.customTripDetails.budgetFlexibility);
-      if (initialData.customTripDetails?.budgetNotes) setBudgetNotes(initialData.customTripDetails.budgetNotes);
+      if (initialData.customTripDetails?.budgetCurrency) {
+        setBudgetCurrency(initialData.customTripDetails.budgetCurrency);
+      }
+      if (initialData.customTripDetails?.budgetCovers) {
+        setBudgetCovers(initialData.customTripDetails.budgetCovers);
+      }
+      if (initialData.customTripDetails?.budgetFlexibility) {
+        setBudgetFlexibility(initialData.customTripDetails.budgetFlexibility);
+      }
+      if (initialData.customTripDetails?.budgetNotes) {
+        setBudgetNotes(initialData.customTripDetails.budgetNotes);
+      }
 
-      if (initialData.pickupAddress) setPickupLocation({ address: initialData.pickupAddress, lat: initialData.pickupLat || 0, lng: initialData.pickupLng || 0, source: 'local' });
+      if (initialData.pickupAddress) {
+        setPickupLocation({
+          address: initialData.pickupAddress,
+          lat: initialData.pickupLat || 0,
+          lng: initialData.pickupLng || 0,
+          source: "local",
+        });
+      }
       setPickupTime(initialData.arrivalTime || "");
       setPickupFlight(initialData.flightNumber || "");
-      
-      if (initialData.destinationAddress) setDropoffLocation({ address: initialData.destinationAddress, lat: initialData.destinationLat || 0, lng: initialData.destinationLng || 0, source: 'local' });
+
+      if (initialData.destinationAddress) {
+        setDropoffLocation({
+          address: initialData.destinationAddress,
+          lat: initialData.destinationLat || 0,
+          lng: initialData.destinationLng || 0,
+          source: "local",
+        });
+      }
       setDropoffTime(initialData.customTripDetails?.dropoffTime || "");
       setDropoffFlight(initialData.customTripDetails?.dropoffFlightNumber || "");
     }
@@ -117,25 +304,26 @@ export default function TripBuilderClient({ vehicleTypes, initialData }: { vehic
       const end = new Date(endDate);
       const diffTime = Math.abs(end.getTime() - start.getTime());
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-      
+
       if (diffDays > 0 && diffDays < 30) {
-        setItinerary(prev => {
+        setItinerary((prev) => {
           const newItin = [];
           for (let i = 1; i <= diffDays; i++) {
             const d = new Date(start);
             d.setDate(d.getDate() + i - 1);
-            
-            // Try to keep existing data if available
-            const existing = prev.find(p => p.dayNumber === i);
-            newItin.push(existing || {
-              dayNumber: i,
-              date: d.toISOString().split('T')[0],
-              startingLocation: null,
-              departureTime: "08:30",
-              placesToVisit: [],
-              overnightLocation: null,
-              notes: ""
-            });
+
+            const existing = prev.find((p) => p.dayNumber === i);
+            newItin.push(
+              existing || {
+                dayNumber: i,
+                date: d.toISOString().split("T")[0],
+                startingLocation: null,
+                departureTime: "08:30",
+                placesToVisit: [],
+                overnightLocation: null,
+                notes: "",
+              }
+            );
           }
           return newItin;
         });
@@ -143,9 +331,173 @@ export default function TripBuilderClient({ vehicleTypes, initialData }: { vehic
     }
   }, [startDate, endDate]);
 
+  // =========================================================
+  // Verification Handlers
+  // =========================================================
+
+  const handleSendEmailOtp = async () => {
+    setEmailError("");
+    setEmailSuccessMsg("");
+    setEmailDevMockCode(null);
+
+    const cleanEmail = contactEmail.toLowerCase().trim();
+    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      setEmailError("Please enter a valid email address.");
+      return;
+    }
+
+    setEmailSending(true);
+    try {
+      const res = await fetch("/api/verification/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "EMAIL", target: cleanEmail }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setEmailOtpSent(true);
+        setEmailCooldown(data.cooldownSeconds || 60);
+        setEmailSuccessMsg(data.message || "Verification code sent to your email.");
+        if (data.isDevMock && data.devCode) {
+          setEmailDevMockCode(data.devCode);
+        }
+      } else {
+        setEmailError(data.error || "Failed to dispatch verification email.");
+        if (data.cooldownSeconds) {
+          setEmailCooldown(data.cooldownSeconds);
+        }
+      }
+    } catch {
+      setEmailError("Network error while sending verification email.");
+    } finally {
+      setEmailSending(false);
+    }
+  };
+
+  const handleVerifyEmailOtp = async () => {
+    setEmailError("");
+    setEmailSuccessMsg("");
+
+    const cleanEmail = contactEmail.toLowerCase().trim();
+    const cleanCode = emailOtpInput.trim();
+    if (!/^\d{6}$/.test(cleanCode)) {
+      setEmailError("Please enter the 6-digit code.");
+      return;
+    }
+
+    setEmailVerifying(true);
+    try {
+      const res = await fetch("/api/verification/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "EMAIL", target: cleanEmail, code: cleanCode }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.verified) {
+        setVerifiedEmailValue(cleanEmail);
+        setEmailVerificationToken(data.verificationToken);
+        setEmailOtpSent(false);
+        setEmailOtpInput("");
+        setEmailSuccessMsg("Email verified successfully!");
+        setEmailDevMockCode(null);
+      } else {
+        setEmailError(data.error || "Invalid verification code.");
+      }
+    } catch {
+      setEmailError("Network error while verifying email code.");
+    } finally {
+      setEmailVerifying(false);
+    }
+  };
+
+  const handleSendPhoneOtp = async () => {
+    setPhoneError("");
+    setPhoneSuccessMsg("");
+    setPhoneDevMockCode(null);
+
+    const cleanPhone = contactPhone.trim().replace(/[^\d+]/g, "");
+    if (!cleanPhone || cleanPhone.replace(/\D/g, "").length < 7) {
+      setPhoneError("Please enter a valid mobile number with country code.");
+      return;
+    }
+
+    setPhoneSending(true);
+    try {
+      const res = await fetch("/api/verification/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "PHONE", target: cleanPhone }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setPhoneOtpSent(true);
+        setPhoneCooldown(data.cooldownSeconds || 60);
+        setPhoneSuccessMsg(data.message || "Verification code sent to your mobile.");
+        if (data.isDevMock && data.devCode) {
+          setPhoneDevMockCode(data.devCode);
+        }
+      } else {
+        setPhoneError(data.error || "Failed to dispatch verification SMS.");
+        if (data.cooldownSeconds) {
+          setPhoneCooldown(data.cooldownSeconds);
+        }
+      }
+    } catch {
+      setPhoneError("Network error while sending verification SMS.");
+    } finally {
+      setPhoneSending(false);
+    }
+  };
+
+  const handleVerifyPhoneOtp = async () => {
+    setPhoneError("");
+    setPhoneSuccessMsg("");
+
+    const cleanPhone = contactPhone.trim().replace(/[^\d+]/g, "");
+    const cleanCode = phoneOtpInput.trim();
+    if (!/^\d{6}$/.test(cleanCode)) {
+      setPhoneError("Please enter the 6-digit OTP code.");
+      return;
+    }
+
+    setPhoneVerifying(true);
+    try {
+      const res = await fetch("/api/verification/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "PHONE", target: cleanPhone, code: cleanCode }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.verified) {
+        setVerifiedPhoneValue(cleanPhone);
+        setPhoneVerificationToken(data.verificationToken);
+        setPhoneOtpSent(false);
+        setPhoneOtpInput("");
+        setPhoneSuccessMsg("Mobile number verified successfully!");
+        setPhoneDevMockCode(null);
+      } else {
+        setPhoneError(data.error || "Invalid verification code.");
+      }
+    } catch {
+      setPhoneError("Network error while verifying mobile code.");
+    } finally {
+      setPhoneVerifying(false);
+    }
+  };
+
+  // =========================================================
+  // Itinerary Handlers
+  // =========================================================
   const handleAddPlace = (dayIndex: number) => {
     const newItin = [...itinerary];
-    newItin[dayIndex].placesToVisit.push({ location: { address: '', lat: 0, lng: 0, source: 'local' }, activityTime: "2 hours" });
+    newItin[dayIndex].placesToVisit.push({
+      location: { address: "", lat: 0, lng: 0, source: "local" },
+      activityTime: "2 hours",
+    });
     setItinerary(newItin);
   };
 
@@ -172,18 +524,50 @@ export default function TripBuilderClient({ vehicleTypes, initialData }: { vehic
   const handleUpdateDay = (dayIndex: number, field: keyof TripDay, value: any) => {
     const newItin = [...itinerary];
     (newItin[dayIndex] as any)[field] = value;
-    
-    // Default next day's starting location to this day's overnight location
-    if (field === 'overnightLocation' && dayIndex < newItin.length - 1) {
+
+    if (field === "overnightLocation" && dayIndex < newItin.length - 1) {
       if (!newItin[dayIndex + 1].startingLocation || newItin[dayIndex + 1].startingLocation?.address === "") {
         newItin[dayIndex + 1].startingLocation = value;
       }
     }
-    
+
     setItinerary(newItin);
   };
 
-  const validateStep1 = () => {
+  // =========================================================
+  // Step Validations
+  // =========================================================
+
+  const validateStep1Details = () => {
+    if (!contactFullName.trim()) return "Please enter your full name.";
+    if (!contactCountry.trim()) return "Please select your country of residence.";
+    if (!contactEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail.trim())) {
+      return "Please enter a valid email address.";
+    }
+    if (!isEmailVerified) {
+      return "Please verify your email address to continue.";
+    }
+    if (!contactPhone.trim() || contactPhone.replace(/\D/g, "").length < 7) {
+      return "Please enter a valid mobile number with country code.";
+    }
+    if (!isPhoneVerified) {
+      return "Please verify your mobile number with OTP to continue.";
+    }
+    if (isBookingForSomeoneElse) {
+      if (!passengerFullName.trim()) {
+        return "Please enter the travelling passenger's full name.";
+      }
+      if (!passengerPhone.trim() || passengerPhone.replace(/\D/g, "").length < 7) {
+        return "Please enter the travelling passenger's mobile number.";
+      }
+    }
+    if (!confirmedAccuracy) {
+      return "Please confirm that your contact and trip details are accurate.";
+    }
+    return null;
+  };
+
+  const validateStep2Basics = () => {
     if (!startDate || !endDate) return "Please select start and end dates.";
     if (new Date(startDate) > new Date(endDate)) return "Start date must be before end date.";
     if (!vehicleTypeId) return "Please select a vehicle type.";
@@ -192,14 +576,14 @@ export default function TripBuilderClient({ vehicleTypes, initialData }: { vehic
     return null;
   };
 
-  const validateStep2 = () => {
+  const validateStep3Logistics = () => {
     if (!pickupLocation) return "Please select a pickup location.";
     if (!pickupTime) return "Please select a pickup time.";
     if (!dropoffLocation) return "Please select a drop-off location.";
     return null;
   };
 
-  const validateStep3 = () => {
+  const validateStep4Itinerary = () => {
     for (let i = 0; i < itinerary.length; i++) {
       if (!itinerary[i].startingLocation) return `Please set a starting location for Day ${i + 1}`;
       if (!itinerary[i].overnightLocation) return `Please set an overnight location for Day ${i + 1}`;
@@ -215,15 +599,16 @@ export default function TripBuilderClient({ vehicleTypes, initialData }: { vehic
   const handleNext = () => {
     setError("");
     let err = null;
-    if (step === 1) err = validateStep1();
-    if (step === 2) err = validateStep2();
-    if (step === 3) err = validateStep3();
+    if (step === 1) err = validateStep1Details();
+    if (step === 2) err = validateStep2Basics();
+    if (step === 3) err = validateStep3Logistics();
+    if (step === 4) err = validateStep4Itinerary();
 
     if (err) {
       setError(err);
       return;
     }
-    setStep(s => s + 1);
+    setStep((s) => s + 1);
   };
 
   const handleSubmit = async (isDraft: boolean) => {
@@ -233,21 +618,44 @@ export default function TripBuilderClient({ vehicleTypes, initialData }: { vehic
       const payload = {
         bookingId: initialData?._id,
         isDraft,
-        basics: { 
-          startDate, 
-          endDate, 
-          adults, 
-          children, 
-          luggage, 
-          vehicleTypeId, 
+        contactDetails: {
+          fullName: contactFullName.trim(),
+          country: contactCountry.trim(),
+          email: contactEmail.toLowerCase().trim(),
+          phone: contactPhone.trim(),
+          isBookingForSomeoneElse,
+          passengerDetails: isBookingForSomeoneElse
+            ? {
+                fullName: passengerFullName.trim(),
+                phone: passengerPhone.trim(),
+              }
+            : undefined,
+          confirmedAccuracy,
+          emailVerificationToken,
+          phoneVerificationToken,
+        },
+        basics: {
+          startDate,
+          endDate,
+          adults,
+          children,
+          luggage,
+          vehicleTypeId,
           budget,
           budgetCurrency,
           budgetCovers,
           budgetFlexibility,
-          budgetNotes
+          budgetNotes,
         },
-        logistics: { pickupLocation, pickupTime, pickupFlight, dropoffLocation, dropoffTime, dropoffFlight },
-        itinerary: itinerary.map(day => ({
+        logistics: {
+          pickupLocation,
+          pickupTime,
+          pickupFlight,
+          dropoffLocation,
+          dropoffTime,
+          dropoffFlight,
+        },
+        itinerary: itinerary.map((day) => ({
           ...day,
           distanceKm: routeData?.daySummaries?.[day.dayNumber]?.totalDrivingDistanceKm || 0,
           drivingTimeMins: routeData?.daySummaries?.[day.dayNumber]?.totalDrivingTimeMins || 0,
@@ -259,7 +667,7 @@ export default function TripBuilderClient({ vehicleTypes, initialData }: { vehic
       const res = await fetch("/api/bookings/custom", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       });
 
       if (res.ok) {
@@ -268,29 +676,55 @@ export default function TripBuilderClient({ vehicleTypes, initialData }: { vehic
         const data = await res.json();
         setError(data.error || "Failed to save trip request.");
       }
-    } catch (err) {
+    } catch {
       setError("An unexpected error occurred.");
     } finally {
       setLoading(false);
     }
   };
 
+  const STEPS_NAV = [
+    { num: 1, label: "Your Details" },
+    { num: 2, label: "Basics" },
+    { num: 3, label: "Logistics" },
+    { num: 4, label: "Itinerary" },
+    { num: 5, label: "Review" },
+  ];
+
+  const isStep1Ready = Boolean(
+    contactFullName.trim() &&
+    contactCountry.trim() &&
+    isEmailVerified &&
+    isPhoneVerified &&
+    (!isBookingForSomeoneElse || (passengerFullName.trim() && passengerPhone.trim())) &&
+    confirmedAccuracy
+  );
+
   return (
     <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
-      {/* Progress Bar */}
+      {/* 5-Step Progress Bar Header */}
       <div className="bg-slate-50 border-b border-slate-100 p-4 sm:p-6 flex justify-between items-center relative">
         <div className="absolute top-1/2 left-0 w-full h-0.5 bg-slate-200 -z-0"></div>
-        <div className="absolute top-1/2 left-0 h-0.5 bg-blue-600 transition-all duration-300" style={{ width: `${((step - 1) / 3) * 100}%` }}></div>
-        
-        {[1, 2, 3, 4].map((num) => (
-          <div key={num} className={`relative z-10 flex flex-col items-center justify-center bg-slate-50 px-2`}>
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm transition-colors ${
-              step >= num ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30' : 'bg-slate-200 text-slate-500'
-            }`}>
-              {step > num ? <Check size={16} /> : num}
+        <div
+          className="absolute top-1/2 left-0 h-0.5 bg-blue-600 transition-all duration-300"
+          style={{ width: `${((step - 1) / 4) * 100}%` }}
+        ></div>
+
+        {STEPS_NAV.map((s) => (
+          <div key={s.num} className="relative z-10 flex flex-col items-center justify-center bg-slate-50 px-1 sm:px-2">
+            <div
+              className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm transition-colors ${
+                step >= s.num ? "bg-blue-600 text-white shadow-md shadow-blue-500/30" : "bg-slate-200 text-slate-500"
+              }`}
+            >
+              {step > s.num ? <Check size={16} /> : s.num}
             </div>
-            <span className={`text-[10px] font-bold uppercase mt-2 hidden sm:block ${step >= num ? 'text-blue-900' : 'text-slate-400'}`}>
-              {num === 1 ? 'Basics' : num === 2 ? 'Logistics' : num === 3 ? 'Itinerary' : 'Review'}
+            <span
+              className={`text-[10px] font-bold uppercase mt-2 hidden md:block ${
+                step >= s.num ? "text-blue-900" : "text-slate-400"
+              }`}
+            >
+              {s.label}
             </span>
           </div>
         ))}
@@ -299,22 +733,426 @@ export default function TripBuilderClient({ vehicleTypes, initialData }: { vehic
       <div className="p-6 sm:p-10">
         {error && (
           <div className="bg-red-50 text-red-700 p-4 rounded-xl mb-6 text-sm font-medium border border-red-100 flex items-center gap-2">
-            <AlertCircle size={16} /> {error}
+            <AlertCircle size={16} className="shrink-0" />
+            <span>{error}</span>
           </div>
         )}
 
-        {/* STEP 1: Basics */}
+        {/* =========================================================
+            STEP 1: Your Details & Verification
+        ========================================================= */}
         {step === 1 && (
           <div className="space-y-8 animate-in fade-in slide-in-from-right-4">
+            <div>
+              <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                <ShieldCheck className="text-blue-600" size={26} />
+                Your Details & Verification
+              </h2>
+              <p className="text-slate-600 text-sm mt-1">
+                Please verify your contact details. This ensures timely driver matching updates, quotations, and official trip confirmations.
+              </p>
+            </div>
+
+            {/* Primary Booking Contact Information */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-6 shadow-xs">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 className="font-bold text-slate-900 flex items-center gap-2 text-base">
+                  <User size={18} className="text-blue-600" />
+                  Booking Contact Person
+                </h3>
+                <span className="text-xs font-semibold px-2.5 py-1 bg-blue-50 text-blue-700 rounded-full">
+                  Primary Account Holder
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Full Name */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                    Full Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={contactFullName}
+                    onChange={(e) => setContactFullName(e.target.value)}
+                    placeholder="e.g. John Doe"
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none font-medium text-slate-900 text-sm"
+                  />
+                </div>
+
+                {/* Country of Residence */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                    Country of Residence *
+                  </label>
+                  <CountrySelect
+                    value={contactCountry}
+                    onChange={(val) => setContactCountry(val)}
+                    placeholder="Select Country of Residence"
+                  />
+                </div>
+
+                {/* Email Address with Verification */}
+                <div className="md:col-span-2 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                      Email Address *
+                    </label>
+                    <div>
+                      {isEmailVerified ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <CheckCircle2 size={13} />
+                          Verified
+                        </span>
+                      ) : verifiedEmailValue && contactEmail.trim().toLowerCase() !== verifiedEmailValue.toLowerCase() ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-extrabold bg-amber-50 text-amber-800 border border-amber-200">
+                          <AlertCircle size={13} />
+                          Email Changed • Verify New Email
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-extrabold bg-slate-100 text-slate-600 border border-slate-200">
+                          Unverified
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                    <div className="relative flex-1">
+                      <Mail size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="email"
+                        value={contactEmail}
+                        onChange={(e) => {
+                          setContactEmail(e.target.value);
+                          setEmailOtpSent(false);
+                          setEmailError("");
+                          setEmailSuccessMsg("");
+                        }}
+                        placeholder="e.g. john@example.com"
+                        className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none font-medium text-slate-900 text-sm"
+                      />
+                    </div>
+
+                    {!isEmailVerified && (
+                      <button
+                        type="button"
+                        disabled={emailSending || emailCooldown > 0 || !contactEmail.trim()}
+                        onClick={handleSendEmailOtp}
+                        className={`px-5 py-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                          emailCooldown > 0
+                            ? "bg-slate-100 text-slate-500 cursor-not-allowed"
+                            : "bg-blue-600 hover:bg-blue-700 text-white shadow-xs active:scale-95"
+                        } disabled:opacity-60 disabled:cursor-not-allowed shrink-0`}
+                      >
+                        {emailSending ? (
+                          <>
+                            <RefreshCw size={14} className="animate-spin" />
+                            <span>Sending...</span>
+                          </>
+                        ) : emailCooldown > 0 ? (
+                          <span>Resend in {emailCooldown}s</span>
+                        ) : emailOtpSent ? (
+                          <span>Resend Code</span>
+                        ) : (
+                          <>
+                            <Send size={14} />
+                            <span>Verify Email</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Dev Mock Banner for Email */}
+                  {emailDevMockCode && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Sparkles size={15} className="text-amber-600 shrink-0" />
+                        <span>
+                          <strong>[DEV MOCK MODE]</strong> Verification Code:{" "}
+                          <code className="bg-white px-2 py-0.5 rounded font-mono font-bold text-amber-700 border border-amber-300">
+                            {emailDevMockCode}
+                          </code>
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setEmailOtpInput(emailDevMockCode)}
+                        className="text-xs text-blue-600 hover:underline font-bold"
+                      >
+                        Auto-fill
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Email Feedback Messages */}
+                  {emailError && <p className="text-xs font-semibold text-red-600 flex items-center gap-1"><AlertCircle size={13} /> {emailError}</p>}
+                  {emailSuccessMsg && <p className="text-xs font-semibold text-emerald-600 flex items-center gap-1"><CheckCircle2 size={13} /> {emailSuccessMsg}</p>}
+
+                  {/* Email OTP Code Input Box */}
+                  {emailOtpSent && !isEmailVerified && (
+                    <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-4 space-y-3 animate-in fade-in duration-200">
+                      <p className="text-xs font-medium text-slate-700">
+                        Enter the 6-digit code sent to <strong>{contactEmail}</strong>:
+                      </p>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="text"
+                          maxLength={6}
+                          value={emailOtpInput}
+                          onChange={(e) => setEmailOtpInput(e.target.value.replace(/\D/g, ""))}
+                          placeholder="123456"
+                          className="w-40 tracking-widest text-center text-lg font-mono font-bold py-2 px-3 bg-white border border-blue-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                        />
+                        <button
+                          type="button"
+                          disabled={emailVerifying || emailOtpInput.length !== 6}
+                          onClick={handleVerifyEmailOtp}
+                          className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
+                        >
+                          {emailVerifying ? <RefreshCw size={13} className="animate-spin" /> : <Check size={14} />}
+                          <span>Verify</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Mobile Number with Country Code & OTP Verification */}
+                <div className="md:col-span-2 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                      Mobile Number *
+                    </label>
+                    <div>
+                      {isPhoneVerified ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <CheckCircle2 size={13} />
+                          Verified
+                        </span>
+                      ) : verifiedPhoneValue && contactPhone.replace(/[^\d+]/g, '') !== verifiedPhoneValue.replace(/[^\d+]/g, '') ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-extrabold bg-amber-50 text-amber-800 border border-amber-200">
+                          <AlertCircle size={13} />
+                          Mobile Changed • Verify New Number
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-extrabold bg-slate-100 text-slate-600 border border-slate-200">
+                          Unverified
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                    <div className="flex-1">
+                      <PhoneInputWithCountry
+                        value={contactPhone}
+                        onChange={(val) => {
+                          setContactPhone(val);
+                          setPhoneOtpSent(false);
+                          setPhoneError("");
+                          setPhoneSuccessMsg("");
+                        }}
+                        placeholder="77 123 4567"
+                      />
+                    </div>
+
+                    {!isPhoneVerified && (
+                      <button
+                        type="button"
+                        disabled={phoneSending || phoneCooldown > 0 || !contactPhone.trim()}
+                        onClick={handleSendPhoneOtp}
+                        className={`px-5 py-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                          phoneCooldown > 0
+                            ? "bg-slate-100 text-slate-500 cursor-not-allowed"
+                            : "bg-blue-600 hover:bg-blue-700 text-white shadow-xs active:scale-95"
+                        } disabled:opacity-60 disabled:cursor-not-allowed shrink-0`}
+                      >
+                        {phoneSending ? (
+                          <>
+                            <RefreshCw size={14} className="animate-spin" />
+                            <span>Sending...</span>
+                          </>
+                        ) : phoneCooldown > 0 ? (
+                          <span>Resend in {phoneCooldown}s</span>
+                        ) : phoneOtpSent ? (
+                          <span>Resend OTP</span>
+                        ) : (
+                          <>
+                            <Phone size={14} />
+                            <span>Send OTP</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Dev Mock Banner for Phone */}
+                  {phoneDevMockCode && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Sparkles size={15} className="text-amber-600 shrink-0" />
+                        <span>
+                          <strong>[DEV MOCK MODE]</strong> Mobile SMS OTP:{" "}
+                          <code className="bg-white px-2 py-0.5 rounded font-mono font-bold text-amber-700 border border-amber-300">
+                            {phoneDevMockCode}
+                          </code>
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setPhoneOtpInput(phoneDevMockCode)}
+                        className="text-xs text-blue-600 hover:underline font-bold"
+                      >
+                        Auto-fill
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Phone Feedback Messages */}
+                  {phoneError && <p className="text-xs font-semibold text-red-600 flex items-center gap-1"><AlertCircle size={13} /> {phoneError}</p>}
+                  {phoneSuccessMsg && <p className="text-xs font-semibold text-emerald-600 flex items-center gap-1"><CheckCircle2 size={13} /> {phoneSuccessMsg}</p>}
+
+                  {/* Phone OTP Code Input Box */}
+                  {phoneOtpSent && !isPhoneVerified && (
+                    <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-4 space-y-3 animate-in fade-in duration-200">
+                      <p className="text-xs font-medium text-slate-700">
+                        Enter the 6-digit SMS verification code sent to <strong>{contactPhone}</strong>:
+                      </p>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="text"
+                          maxLength={6}
+                          value={phoneOtpInput}
+                          onChange={(e) => setPhoneOtpInput(e.target.value.replace(/\D/g, ""))}
+                          placeholder="123456"
+                          className="w-40 tracking-widest text-center text-lg font-mono font-bold py-2 px-3 bg-white border border-blue-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
+                        />
+                        <button
+                          type="button"
+                          disabled={phoneVerifying || phoneOtpInput.length !== 6}
+                          onClick={handleVerifyPhoneOtp}
+                          className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
+                        >
+                          {phoneVerifying ? <RefreshCw size={13} className="animate-spin" /> : <Check size={14} />}
+                          <span>Verify</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* "I'm booking for someone else" Section */}
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 space-y-4">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isBookingForSomeoneElse}
+                  onChange={(e) => setIsBookingForSomeoneElse(e.target.checked)}
+                  className="w-5 h-5 rounded text-blue-600 focus:ring-blue-500 border-slate-300 mt-0.5 cursor-pointer"
+                />
+                <div>
+                  <span className="font-bold text-slate-900 text-sm">
+                    I'm booking this trip for someone else
+                  </span>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Select this if you are arranging and paying for this trip, but another person will be the primary passenger traveling in Sri Lanka.
+                  </p>
+                </div>
+              </label>
+
+              {isBookingForSomeoneElse && (
+                <div className="pt-4 border-t border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in duration-200">
+                  <div className="md:col-span-2">
+                    <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                      <UserCheck size={16} className="text-blue-600" />
+                      Main Travelling Passenger
+                    </h4>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      The assigned driver will be provided these passenger details for pickup coordination and on-the-ground communication.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                      Passenger Full Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={passengerFullName}
+                      onChange={(e) => setPassengerFullName(e.target.value)}
+                      placeholder="e.g. Jane Doe"
+                      className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-slate-900 text-sm"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                      Passenger Mobile Number *
+                    </label>
+                    <PhoneInputWithCountry
+                      value={passengerPhone}
+                      onChange={(val) => setPassengerPhone(val)}
+                      placeholder="77 987 6543"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Accuracy Confirmation Checkbox */}
+            <div className="p-4 bg-blue-50/50 border border-blue-100 rounded-2xl">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={confirmedAccuracy}
+                  onChange={(e) => setConfirmedAccuracy(e.target.checked)}
+                  className="w-5 h-5 rounded text-blue-600 focus:ring-blue-500 border-slate-300 mt-0.5 cursor-pointer"
+                />
+                <span className="text-xs font-medium text-slate-700 leading-relaxed">
+                  I confirm that my contact and trip details are accurate. I acknowledge that notifications regarding driver matching, trip quotations, and confirmations will be sent to the verified contacts.
+                </span>
+              </label>
+            </div>
+
+            {/* Continue to Trip Basics Button */}
+            <div className="flex justify-end pt-4 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={handleNext}
+                disabled={!isStep1Ready}
+                className={`px-8 py-3.5 rounded-xl font-extrabold text-sm flex items-center gap-2 transition-all cursor-pointer ${
+                  isStep1Ready
+                    ? "bg-blue-600 hover:bg-blue-700 active:scale-95 text-white shadow-md shadow-blue-500/20"
+                    : "bg-slate-200 text-slate-400 cursor-not-allowed"
+                }`}
+              >
+                <span>Continue to Trip Basics</span>
+                <ChevronRight size={18} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* =========================================================
+            STEP 2: Trip Basics
+        ========================================================= */}
+        {step === 2 && (
+          <div className="space-y-8 animate-in fade-in slide-in-from-right-4">
             <h2 className="text-xl font-bold text-slate-900">Trip Basics</h2>
-            
+
             {initialData?.adminNotes?.basics && (
               <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-lg shadow-sm">
-                <p className="text-sm font-bold text-amber-900 flex items-center gap-2"><AlertCircle size={16} /> Admin Feedback - Trip Basics</p>
+                <p className="text-sm font-bold text-amber-900 flex items-center gap-2">
+                  <AlertCircle size={16} /> Admin Feedback - Trip Basics
+                </p>
                 <p className="text-sm text-amber-800 mt-1">{initialData.adminNotes.basics}</p>
               </div>
             )}
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-2">Start Date *</label>
@@ -322,7 +1160,13 @@ export default function TripBuilderClient({ vehicleTypes, initialData }: { vehic
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <Calendar className="text-slate-400" size={18} />
                   </div>
-                  <input type="date" value={startDate} min={new Date().toISOString().split('T')[0]} onChange={e => setStartDate(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" />
+                  <input
+                    type="date"
+                    value={startDate}
+                    min={new Date().toISOString().split("T")[0]}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-slate-900 font-medium"
+                  />
                 </div>
               </div>
               <div>
@@ -331,277 +1175,498 @@ export default function TripBuilderClient({ vehicleTypes, initialData }: { vehic
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <Calendar className="text-slate-400" size={18} />
                   </div>
-                  <input type="date" value={endDate} min={startDate || new Date().toISOString().split('T')[0]} onChange={e => setEndDate(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" />
+                  <input
+                    type="date"
+                    value={endDate}
+                    min={startDate || new Date().toISOString().split("T")[0]}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-slate-900 font-medium"
+                  />
                 </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+            {/* Passenger & Luggage Counts */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">Adults *</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Users className="text-slate-400" size={18} /></div>
-                  <input type="number" min="1" value={adults} onChange={e => setAdults(Number(e.target.value))} className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" />
+                <label className="block text-sm font-bold text-slate-700 mb-2">Adults (12+ yrs)</label>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setAdults(Math.max(1, adults - 1))}
+                    className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 font-bold flex items-center justify-center text-slate-700"
+                  >
+                    -
+                  </button>
+                  <span className="text-lg font-bold text-slate-800 w-8 text-center">{adults}</span>
+                  <button
+                    type="button"
+                    onClick={() => setAdults(adults + 1)}
+                    className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 font-bold flex items-center justify-center text-slate-700"
+                  >
+                    +
+                  </button>
                 </div>
               </div>
+
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">Children</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Users className="text-slate-400" size={18} /></div>
-                  <input type="number" min="0" value={children} onChange={e => setChildren(Number(e.target.value))} className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" />
+                <label className="block text-sm font-bold text-slate-700 mb-2">Children (under 12)</label>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setChildren(Math.max(0, children - 1))}
+                    className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 font-bold flex items-center justify-center text-slate-700"
+                  >
+                    -
+                  </button>
+                  <span className="text-lg font-bold text-slate-800 w-8 text-center">{children}</span>
+                  <button
+                    type="button"
+                    onClick={() => setChildren(children + 1)}
+                    className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 font-bold flex items-center justify-center text-slate-700"
+                  >
+                    +
+                  </button>
                 </div>
               </div>
-              <div className="col-span-2 md:col-span-1">
-                <label className="block text-sm font-bold text-slate-700 mb-2">Large Bags</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Briefcase className="text-slate-400" size={18} /></div>
-                  <input type="number" min="0" value={luggage} onChange={e => setLuggage(Number(e.target.value))} className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" />
-                </div>
-              </div>
-            </div>
 
-            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
-              <label className="block text-sm font-bold text-slate-700 mb-2">Preferred Vehicle *</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Car className="text-slate-400" size={18} /></div>
-                <select value={vehicleTypeId} onChange={e => setVehicleTypeId(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none appearance-none">
-                  <option value="">Select a vehicle...</option>
-                  {vehicleTypes.map(v => (
-                    <option key={v._id} value={v._id}>{v.name} (Max {v.maxPassengers} pax, {v.maxLuggage} bags)</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 space-y-6">
-              <h3 className="font-bold text-slate-800 flex items-center gap-2 border-b border-slate-200 pb-2"><DollarSign size={18} className="text-blue-600"/> Your Trip Budget *</h3>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">Budget Amount *</label>
-                  <div className="flex gap-2">
-                    <select value={budgetCurrency} onChange={e => setBudgetCurrency(e.target.value)} className="w-1/3 px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none appearance-none">
-                      <option value="USD">USD</option>
-                      <option value="LKR">LKR</option>
-                    </select>
-                    <input type="number" min="0" placeholder="e.g. 500" value={budget} onChange={e => setBudget(e.target.value)} className="w-2/3 px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">Budget Covers</label>
-                  <select value={budgetCovers} onChange={e => setBudgetCovers(e.target.value)} className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none appearance-none">
-                    <option value="Transport only">Transport only</option>
-                    <option value="Entire trip">Entire trip (Hotels, Activities, etc.)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">Flexibility</label>
-                  <select value={budgetFlexibility} onChange={e => setBudgetFlexibility(e.target.value)} className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none appearance-none">
-                    <option value="Negotiable">Negotiable</option>
-                    <option value="Fixed maximum">Fixed maximum</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">Notes on Budget</label>
-                  <input type="text" placeholder="e.g. Can increase if hotels are included" value={budgetNotes} onChange={e => setBudgetNotes(e.target.value)} className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" />
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* STEP 2: Logistics */}
-        {step === 2 && (
-          <div className="space-y-8 animate-in fade-in slide-in-from-right-4">
-            <h2 className="text-xl font-bold text-slate-900">Pickup & Drop-off Logistics</h2>
-            
-            {initialData?.adminNotes?.logistics && (
-              <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-lg shadow-sm">
-                <p className="text-sm font-bold text-amber-900 flex items-center gap-2"><AlertCircle size={16} /> Admin Feedback - Logistics</p>
-                <p className="text-sm text-amber-800 mt-1">{initialData.adminNotes.logistics}</p>
-              </div>
-            )}
-            
-            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 space-y-6">
-              <h3 className="font-bold text-slate-800 flex items-center gap-2 border-b border-slate-200 pb-2"><MapPin size={18} className="text-blue-600"/> Initial Pickup</h3>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="md:col-span-2 space-y-4">
-                  <PlacesAutocompleteInput 
-                    label="Pickup Location (Search or Type) *" 
-                    placeholder="E.g. Colombo Airport, Hotel Name, City"
-                    value={pickupLocation} 
-                    onChange={setPickupLocation} 
-                  />
-                  <MapLocationPicker
-                    label="Or select Pickup on Map"
-                    value={pickupLocation}
-                    onChange={setPickupLocation}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">Pickup Time *</label>
-                  <input type="time" value={pickupTime} onChange={e => setPickupTime(e.target.value)} className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">Arrival Flight No. (Optional)</label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Plane className="text-slate-400" size={18} /></div>
-                    <input type="text" placeholder="e.g. UL 504" value={pickupFlight} onChange={e => setPickupFlight(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" />
-                  </div>
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">Large Luggage</label>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setLuggage(Math.max(0, luggage - 1))}
+                    className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 font-bold flex items-center justify-center text-slate-700"
+                  >
+                    -
+                  </button>
+                  <span className="text-lg font-bold text-slate-800 w-8 text-center">{luggage}</span>
+                  <button
+                    type="button"
+                    onClick={() => setLuggage(luggage + 1)}
+                    className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 font-bold flex items-center justify-center text-slate-700"
+                  >
+                    +
+                  </button>
                 </div>
               </div>
             </div>
 
-            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 space-y-6">
-              <h3 className="font-bold text-slate-800 flex items-center gap-2 border-b border-slate-200 pb-2"><MapPin size={18} className="text-slate-600"/> Final Drop-off</h3>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="md:col-span-2 space-y-4">
-                  <PlacesAutocompleteInput 
-                    label="Drop-off Location (Search or Type) *" 
-                    placeholder="E.g. Colombo Airport, Hotel Name, City"
-                    value={dropoffLocation} 
-                    onChange={setDropoffLocation} 
-                  />
-                  <MapLocationPicker
-                    label="Or select Drop-off on Map"
-                    value={dropoffLocation}
-                    onChange={setDropoffLocation}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">Drop-off Time *</label>
-                  <input type="time" value={dropoffTime} onChange={e => setDropoffTime(e.target.value)} className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">Departure Flight No. (Optional)</label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Plane className="text-slate-400" size={18} /></div>
-                    <input type="text" placeholder="e.g. UL 505" value={dropoffFlight} onChange={e => setDropoffFlight(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* STEP 3: Itinerary Builder */}
-        {step === 3 && (
-          <div className="space-y-8 animate-in fade-in slide-in-from-right-4">
+            {/* Vehicle Selection */}
             <div>
-              <h2 className="text-xl font-bold text-slate-900 mb-2">Day-by-Day Itinerary</h2>
-              <p className="text-sm text-slate-500">Plan out each day of your {itinerary.length} day trip. The first day starts on {startDate}.</p>
-            </div>
-            
-            <div className="flex flex-col lg:flex-row gap-8 items-start">
-              <div className="flex-1 space-y-12 w-full min-w-0">
-                {itinerary.map((day, dayIndex) => (
-                  <div key={day.dayNumber} className="relative border-l-2 border-slate-200 pl-6 pb-4">
-                    <div className="absolute -left-[17px] top-0 bg-blue-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold shadow-md">
-                      {day.dayNumber}
+              <label className="block text-sm font-bold text-slate-700 mb-3">Vehicle Preference *</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                {vehicleTypes.map((v) => (
+                  <div
+                    key={v._id}
+                    onClick={() => setVehicleTypeId(v._id)}
+                    className={`p-5 rounded-2xl border-2 cursor-pointer transition-all ${
+                      vehicleTypeId === v._id
+                        ? "border-blue-600 bg-blue-50/20 shadow-md"
+                        : "border-slate-100 bg-white hover:border-slate-200"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-bold text-slate-800 text-base">{v.name}</span>
+                      <Car size={20} className={vehicleTypeId === v._id ? "text-blue-600" : "text-slate-400"} />
                     </div>
-                    
-                    <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 space-y-6">
-                      <div className="flex justify-between items-center border-b border-slate-100 pb-4">
-                        <h3 className="font-bold text-lg text-slate-800">Day {day.dayNumber} - {new Date(day.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric'})}</h3>
-                      </div>
-
-                      {initialData?.adminNotes?.[`day_${day.dayNumber}`] && (
-                        <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-lg shadow-sm">
-                          <p className="text-sm font-bold text-amber-900 flex items-center gap-2"><AlertCircle size={16} /> Admin Feedback - Day {day.dayNumber}</p>
-                          <p className="text-sm text-amber-800 mt-1">{initialData.adminNotes[`day_${day.dayNumber}`]}</p>
-                        </div>
-                      )}
-
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="md:col-span-2">
-                          <PlacesAutocompleteInput 
-                            label="Starting Location *" 
-                            placeholder="Where does the day begin?"
-                            value={day.startingLocation} 
-                            onChange={(loc) => handleUpdateDay(dayIndex, 'startingLocation', loc)} 
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-bold text-slate-700 mb-2">Departure Time</label>
-                          <input type="time" value={day.departureTime} onChange={e => handleUpdateDay(dayIndex, 'departureTime', e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" />
-                        </div>
-                      </div>
-
-                      {/* Places to Visit */}
-                      <div className="space-y-4">
-                        <h4 className="text-sm font-bold text-slate-700">Places to Visit</h4>
-                        {day.placesToVisit.map((place, placeIndex) => (
-                          <div key={placeIndex} className="flex flex-col md:flex-row gap-3 bg-slate-50 p-4 rounded-xl border border-slate-100 relative group">
-                            <div className="flex-1">
-                              <PlacesAutocompleteInput 
-                                label="" 
-                                placeholder="E.g. Sigiriya Rock, Galle Fort"
-                                value={place.location} 
-                                onChange={(loc) => handleUpdatePlace(dayIndex, placeIndex, loc)} 
-                              />
-                            </div>
-                            <div className="w-full md:w-48 shrink-0">
-                              <select value={place.activityTime} onChange={e => handleUpdatePlaceTime(dayIndex, placeIndex, e.target.value)} className="w-full px-4 py-[13px] bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                <option value="Pass by">Pass by</option>
-                                <option value="1 hour">1 hour</option>
-                                <option value="2 hours">2 hours</option>
-                                <option value="3 hours">3 hours</option>
-                                <option value="Half day">Half day</option>
-                              </select>
-                            </div>
-                            <button onClick={() => handleRemovePlace(dayIndex, placeIndex)} className="w-10 h-[46px] flex items-center justify-center text-red-500 hover:bg-red-50 rounded-xl transition-colors">
-                              <Trash2 size={18} />
-                            </button>
-                          </div>
-                        ))}
-                        <button onClick={() => handleAddPlace(dayIndex)} className="text-sm font-bold text-blue-600 flex items-center gap-1 hover:bg-blue-50 px-3 py-2 rounded-lg transition-colors">
-                          <Plus size={16} /> Add Stop / Attraction
-                        </button>
-                      </div>
-
-                      {/* Overnight */}
-                      <div className="pt-4 border-t border-slate-100">
-                        <PlacesAutocompleteInput 
-                          label="Overnight Location (City / Hotel) *" 
-                          placeholder="Where are you sleeping tonight?"
-                          value={day.overnightLocation} 
-                          onChange={(loc) => handleUpdateDay(dayIndex, 'overnightLocation', loc)} 
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-2">Notes for Driver (Optional)</label>
-                        <textarea rows={2} value={day.notes} onChange={e => handleUpdateDay(dayIndex, 'notes', e.target.value)} placeholder="E.g. Prefer scenic route, need to stop for lunch at 1pm" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm"></textarea>
-                      </div>
-
+                    <div className="text-xs text-slate-500 space-y-1">
+                      <p className="flex items-center gap-1.5"><Users size={12} /> Up to {v.maxPassengers} passengers</p>
+                      <p className="flex items-center gap-1.5"><Briefcase size={12} /> Up to {v.maxLuggage} bags</p>
                     </div>
                   </div>
                 ))}
               </div>
-              <div className="w-full lg:w-96 shrink-0 min-w-0">
-                <ItineraryRouteSummary itinerary={itinerary} onRouteCalculated={setRouteData} />
+            </div>
+
+            {/* Target Budget */}
+            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 space-y-4">
+              <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                <DollarSign size={18} className="text-blue-600" />
+                Target Budget
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                    Proposed Budget Amount *
+                  </label>
+                  <div className="flex gap-2">
+                    <select
+                      value={budgetCurrency}
+                      onChange={(e) => setBudgetCurrency(e.target.value)}
+                      className="bg-white border border-slate-200 rounded-xl px-3 py-2 font-bold text-sm text-slate-800"
+                    >
+                      <option value="USD">USD ($)</option>
+                      <option value="LKR">LKR (Rs)</option>
+                      <option value="EUR">EUR (€)</option>
+                      <option value="GBP">GBP (£)</option>
+                    </select>
+                    <input
+                      type="number"
+                      value={budget}
+                      onChange={(e) => setBudget(e.target.value)}
+                      placeholder="e.g. 500"
+                      className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm font-medium"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                    Budget Flexibility
+                  </label>
+                  <select
+                    value={budgetFlexibility}
+                    onChange={(e) => setBudgetFlexibility(e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium"
+                  >
+                    <option value="Negotiable">Negotiable (Open to counter-offers)</option>
+                    <option value="Fixed maximum">Fixed Maximum</option>
+                  </select>
+                </div>
               </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                  Budget Notes (Optional)
+                </label>
+                <textarea
+                  value={budgetNotes}
+                  onChange={(e) => setBudgetNotes(e.target.value)}
+                  placeholder="Any special inclusions or budget notes..."
+                  rows={2}
+                  className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-medium"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-between pt-4 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setStep(1)}
+                className="px-6 py-3 border border-slate-200 rounded-xl font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
+              >
+                <ChevronLeft size={16} /> Back to Details
+              </button>
+              <button
+                type="button"
+                onClick={handleNext}
+                className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold flex items-center gap-2 shadow-md shadow-blue-500/20 cursor-pointer"
+              >
+                Continue to Logistics <ChevronRight size={16} />
+              </button>
             </div>
           </div>
         )}
 
-        {/* STEP 4: Review */}
+        {/* =========================================================
+            STEP 3: Logistics
+        ========================================================= */}
+        {step === 3 && (
+          <div className="space-y-8 animate-in fade-in slide-in-from-right-4">
+            <h2 className="text-xl font-bold text-slate-900">Arrival & Departure Logistics</h2>
+
+            {/* Initial Pickup */}
+            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 space-y-4">
+              <h3 className="font-bold text-slate-800 flex items-center gap-2 text-base">
+                <MapPin size={18} className="text-blue-600" />
+                Initial Trip Pickup *
+              </h3>
+              <PlacesAutocompleteInput
+                label="Pickup Location"
+                value={pickupLocation}
+                onChange={setPickupLocation}
+                placeholder="Enter Airport, Hotel, or Address"
+              />
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                    Pickup Time *
+                  </label>
+                  <input
+                    type="time"
+                    value={pickupTime}
+                    onChange={(e) => setPickupTime(e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                    Flight Number (Optional)
+                  </label>
+                  <div className="relative">
+                    <Plane size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      value={pickupFlight}
+                      onChange={(e) => setPickupFlight(e.target.value)}
+                      placeholder="e.g. UL 504"
+                      className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2.5 text-sm font-medium"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Final Drop-off */}
+            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 space-y-4">
+              <h3 className="font-bold text-slate-800 flex items-center gap-2 text-base">
+                <MapPin size={18} className="text-rose-600" />
+                Final Trip Drop-off *
+              </h3>
+              <PlacesAutocompleteInput
+                label="Drop-off Location"
+                value={dropoffLocation}
+                onChange={setDropoffLocation}
+                placeholder="Enter Airport, Hotel, or Address"
+              />
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                    Drop-off Time (Optional)
+                  </label>
+                  <input
+                    type="time"
+                    value={dropoffTime}
+                    onChange={(e) => setDropoffTime(e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                    Departure Flight (Optional)
+                  </label>
+                  <div className="relative">
+                    <Plane size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      value={dropoffFlight}
+                      onChange={(e) => setDropoffFlight(e.target.value)}
+                      placeholder="e.g. UL 505"
+                      className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2.5 text-sm font-medium"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-between pt-4 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setStep(2)}
+                className="px-6 py-3 border border-slate-200 rounded-xl font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
+              >
+                <ChevronLeft size={16} /> Back to Basics
+              </button>
+              <button
+                type="button"
+                onClick={handleNext}
+                className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold flex items-center gap-2 shadow-md shadow-blue-500/20 cursor-pointer"
+              >
+                Continue to Itinerary <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* =========================================================
+            STEP 4: Itinerary
+        ========================================================= */}
         {step === 4 && (
+          <div className="space-y-8 animate-in fade-in slide-in-from-right-4">
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900">Day-by-Day Itinerary</h2>
+                <p className="text-slate-500 text-sm">Specify starting locations, places to visit, and overnight stays for each day.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleSubmit(true)}
+                disabled={loading}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs self-start sm:self-auto cursor-pointer"
+              >
+                <Save size={14} /> Save Draft
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              {itinerary.map((day, dayIndex) => (
+                <div key={day.dayNumber} className="bg-slate-50 border border-slate-200 rounded-2xl p-6 space-y-6">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                    <span className="font-bold text-slate-800 text-base">
+                      Day {day.dayNumber} • {new Date(day.date).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}
+                    </span>
+                    <span className="text-xs font-semibold px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-slate-600">
+                      Departure: {day.departureTime}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <PlacesAutocompleteInput
+                      label="Day Starting Location *"
+                      value={day.startingLocation}
+                      onChange={(loc) => handleUpdateDay(dayIndex, "startingLocation", loc)}
+                      placeholder="Where does this day start?"
+                    />
+
+                    <PlacesAutocompleteInput
+                      label="Overnight Location (Hotel/City) *"
+                      value={day.overnightLocation}
+                      onChange={(loc) => handleUpdateDay(dayIndex, "overnightLocation", loc)}
+                      placeholder="Where will you sleep tonight?"
+                    />
+                  </div>
+
+                  {/* Places to Visit */}
+                  <div className="space-y-3 pt-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">
+                        Attractions / Places to Visit on Day {day.dayNumber}
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => handleAddPlace(dayIndex)}
+                        className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer"
+                      >
+                        <Plus size={14} /> Add Attraction
+                      </button>
+                    </div>
+
+                    {day.placesToVisit.map((place, placeIndex) => (
+                      <div key={placeIndex} className="flex items-center gap-2">
+                        <div className="flex-1">
+                          <PlacesAutocompleteInput
+                            label=""
+                            value={place.location}
+                            onChange={(loc) => handleUpdatePlace(dayIndex, placeIndex, loc)}
+                            placeholder="e.g. Sigiriya Rock Fortress, Temple of the Tooth"
+                          />
+                        </div>
+                        <input
+                          type="text"
+                          value={place.activityTime}
+                          onChange={(e) => handleUpdatePlaceTime(dayIndex, placeIndex, e.target.value)}
+                          placeholder="e.g. 2 hours"
+                          className="w-28 bg-white border border-slate-200 rounded-xl px-3 py-3 text-xs font-medium"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleRemovePlace(dayIndex, placeIndex)}
+                          className="p-3 text-slate-400 hover:text-rose-600 rounded-xl transition-colors cursor-pointer"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Route Summary */}
+            {itinerary.length > 0 && (
+              <ItineraryRouteSummary
+                itinerary={itinerary}
+                onRouteCalculated={(data) => setRouteData(data)}
+              />
+            )}
+
+            <div className="flex justify-between pt-4 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setStep(3)}
+                className="px-6 py-3 border border-slate-200 rounded-xl font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
+              >
+                <ChevronLeft size={16} /> Back to Logistics
+              </button>
+              <button
+                type="button"
+                onClick={handleNext}
+                className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold flex items-center gap-2 shadow-md shadow-blue-500/20 cursor-pointer"
+              >
+                Review Request <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* =========================================================
+            STEP 5: Review & Submit
+        ========================================================= */}
+        {step === 5 && (
           <div className="space-y-8 animate-in fade-in slide-in-from-right-4">
             <h2 className="text-2xl font-bold text-slate-900">Review Trip Request</h2>
 
-            {/* Trip Overview */}
+            {/* 1. Contact & Passenger Details Card */}
+            <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+              <div className="bg-slate-50 border-b border-slate-200 px-6 py-4 flex justify-between items-center">
+                <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                  <ShieldCheck size={18} className="text-blue-600" />
+                  Booking Contact & Passengers
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  className="text-sm font-bold text-blue-600 hover:text-blue-700 cursor-pointer"
+                >
+                  Edit
+                </button>
+              </div>
+              <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Booking Contact</p>
+                  <p className="font-medium text-slate-900">{contactFullName}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">{contactCountry}</p>
+                </div>
+
+                <div>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Verified Email</p>
+                  <p className="font-medium text-slate-900 flex items-center gap-1.5 truncate">
+                    <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
+                    <span className="truncate">{contactEmail}</span>
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Verified Mobile</p>
+                  <p className="font-medium text-slate-900 flex items-center gap-1.5">
+                    <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
+                    <span>{contactPhone}</span>
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Travelling Passenger</p>
+                  {isBookingForSomeoneElse ? (
+                    <div>
+                      <p className="font-bold text-slate-900">{passengerFullName}</p>
+                      <p className="text-xs text-slate-500">{passengerPhone}</p>
+                      <span className="inline-block mt-1 text-[10px] uppercase font-extrabold px-2 py-0.5 bg-amber-50 text-amber-700 rounded border border-amber-200">
+                        Booked For Someone Else
+                      </span>
+                    </div>
+                  ) : (
+                    <p className="font-medium text-slate-700">Account Holder (Traveling)</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* 2. Trip Overview (Basics) */}
             <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
               <div className="bg-slate-50 border-b border-slate-200 px-6 py-4 flex justify-between items-center">
                 <h3 className="font-bold text-slate-800 flex items-center gap-2">
                   <Calendar size={18} className="text-blue-600" /> Trip Overview
                 </h3>
-                <button onClick={() => setStep(1)} className="text-sm font-bold text-blue-600 hover:text-blue-700">Edit</button>
+                <button
+                  type="button"
+                  onClick={() => setStep(2)}
+                  className="text-sm font-bold text-blue-600 hover:text-blue-700 cursor-pointer"
+                >
+                  Edit
+                </button>
               </div>
               <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div>
@@ -618,202 +1683,121 @@ export default function TripBuilderClient({ vehicleTypes, initialData }: { vehic
                 </div>
                 <div>
                   <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Vehicle Preference</p>
-                  <p className="font-medium text-slate-900">{vehicleTypes.find(v => v._id === vehicleTypeId)?.name || "Not selected"}</p>
+                  <p className="font-medium text-slate-900">{vehicleTypes.find((v) => v._id === vehicleTypeId)?.name || "Not selected"}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Rider's Proposed Budget</p>
-                  <p className="font-medium text-slate-900">{budget ? `${budgetCurrency} ${budget}` : 'Flexible'}</p>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Rider's Target Budget</p>
+                  <p className="font-medium text-slate-900">{budget ? `${budgetCurrency} ${budget}` : "Flexible"}</p>
                   {budget && (
                     <p className="text-xs text-slate-500 mt-1">
                       {budgetCovers} • {budgetFlexibility}
                     </p>
                   )}
-                  {budgetNotes && <p className="text-xs text-amber-700 bg-amber-50 p-1 rounded mt-1 line-clamp-2" title={budgetNotes}>{budgetNotes}</p>}
                 </div>
               </div>
             </div>
 
-            {/* Arrival & Departure */}
+            {/* 3. Arrival & Departure (Logistics) */}
             <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
               <div className="bg-slate-50 border-b border-slate-200 px-6 py-4 flex justify-between items-center">
                 <h3 className="font-bold text-slate-800 flex items-center gap-2">
                   <MapPin size={18} className="text-blue-600" /> Arrival & Departure
                 </h3>
-                <button onClick={() => setStep(2)} className="text-sm font-bold text-blue-600 hover:text-blue-700">Edit</button>
+                <button
+                  type="button"
+                  onClick={() => setStep(3)}
+                  className="text-sm font-bold text-blue-600 hover:text-blue-700 cursor-pointer"
+                >
+                  Edit
+                </button>
               </div>
               <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="space-y-3">
+                <div>
                   <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Initial Pickup</p>
-                  <div>
-                    <p className="font-medium text-slate-900">{pickupLocation?.address || "Not set"}</p>
-                    <p className="text-sm text-slate-500">Time: {pickupTime || "Not set"}</p>
-                    {pickupFlight && <p className="text-sm text-slate-500">Flight: {pickupFlight}</p>}
-                  </div>
-                  {pickupLocation?.source === 'gps' && (
-                    <div className="h-32 w-full bg-slate-100 rounded-xl overflow-hidden pointer-events-none opacity-80 mt-2">
-                       <MapLocationPicker label="" value={pickupLocation} onChange={() => {}} />
-                    </div>
-                  )}
+                  <p className="font-medium text-slate-900 mt-1">{pickupLocation?.address || "Not set"}</p>
+                  <p className="text-sm text-slate-500">Time: {pickupTime || "Not set"}</p>
+                  {pickupFlight && <p className="text-sm text-slate-500">Flight: {pickupFlight}</p>}
                 </div>
-                <div className="space-y-3">
+                <div>
                   <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Final Drop-off</p>
-                  <div>
-                    <p className="font-medium text-slate-900">{dropoffLocation?.address || "Not set"}</p>
-                    <p className="text-sm text-slate-500">Time: {dropoffTime || "Not set"}</p>
-                    {dropoffFlight && <p className="text-sm text-slate-500">Flight: {dropoffFlight}</p>}
-                  </div>
-                  {dropoffLocation?.source === 'gps' && (
-                    <div className="h-32 w-full bg-slate-100 rounded-xl overflow-hidden pointer-events-none opacity-80 mt-2">
-                       <MapLocationPicker label="" value={dropoffLocation} onChange={() => {}} />
-                    </div>
-                  )}
+                  <p className="font-medium text-slate-900 mt-1">{dropoffLocation?.address || "Not set"}</p>
+                  <p className="text-sm text-slate-500">Time: {dropoffTime || "Not set"}</p>
+                  {dropoffFlight && <p className="text-sm text-slate-500">Flight: {dropoffFlight}</p>}
                 </div>
               </div>
             </div>
 
-            {/* Complete Itinerary */}
+            {/* 4. Complete Itinerary */}
             <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
               <div className="bg-slate-50 border-b border-slate-200 px-6 py-4 flex justify-between items-center">
                 <h3 className="font-bold text-slate-800 flex items-center gap-2">
                   <Car size={18} className="text-blue-600" /> Complete Itinerary
                 </h3>
-                <button onClick={() => setStep(3)} className="text-sm font-bold text-blue-600 hover:text-blue-700">Edit</button>
+                <button
+                  type="button"
+                  onClick={() => setStep(4)}
+                  className="text-sm font-bold text-blue-600 hover:text-blue-700 cursor-pointer"
+                >
+                  Edit
+                </button>
               </div>
-              <div className="p-0">
-                {itinerary.map(day => {
-                  const summary = routeData?.daySummaries?.[day.dayNumber];
-                  
-                  return (
-                    <div key={day.dayNumber} className="border-b border-slate-100 last:border-0">
-                      <details className="group" open>
-                        <summary className="flex justify-between items-center p-6 cursor-pointer hover:bg-slate-50">
-                          <div>
-                            <p className="font-bold text-slate-800 text-lg">Day {day.dayNumber} - {new Date(day.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric'})}</p>
-                            <p className="text-sm text-slate-500">{day.startingLocation?.address?.split(',')[0]} → {day.overnightLocation?.address?.split(',')[0]}</p>
-                          </div>
-                          <ChevronRight className="text-slate-400 group-open:rotate-90 transition-transform" />
-                        </summary>
-                        
-                        <div className="px-6 pb-6 pt-2 space-y-6">
-                          <div className="pl-6 border-l-2 border-slate-200 space-y-6 relative">
-                            {/* Start */}
-                            <div className="relative">
-                              <div className="absolute -left-[31px] bg-slate-200 w-4 h-4 rounded-full border-4 border-white"></div>
-                              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Start • {day.departureTime || "Time not set"}</p>
-                              <p className="font-medium text-slate-900">{day.startingLocation?.address || "Not set"}</p>
-                            </div>
-
-                            {/* Stops */}
-                            {day.placesToVisit.map((place, idx) => (
-                              <div key={idx} className="relative pt-2">
-                                <div className="absolute -left-[31px] bg-blue-500 w-4 h-4 rounded-full border-4 border-white"></div>
-                                {summary?.isValid && summary.segments[idx] && (
-                                  <div className="absolute -top-6 -left-[27px] pl-8 text-[11px] text-slate-500 bg-white py-1">
-                                    🚗 {summary.segments[idx].distanceKm.toFixed(1)} km • {Math.round(summary.segments[idx].durationMins)} mins
-                                  </div>
-                                )}
-                                <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">Stop {idx + 1}</p>
-                                <p className="font-medium text-slate-900">{place.location.address}</p>
-                                <p className="text-sm text-slate-500 mt-1">Planned Activity: {place.activityTime}</p>
-                              </div>
-                            ))}
-
-                            {/* Overnight */}
-                            <div className="relative pt-2">
-                              <div className="absolute -left-[31px] bg-slate-800 w-4 h-4 rounded-full border-4 border-white"></div>
-                              {summary?.isValid && summary.segments[day.placesToVisit.length] && (
-                                <div className="absolute -top-6 -left-[27px] pl-8 text-[11px] text-slate-500 bg-white py-1">
-                                  🚗 {summary.segments[day.placesToVisit.length].distanceKm.toFixed(1)} km • {Math.round(summary.segments[day.placesToVisit.length].durationMins)} mins
-                                </div>
-                              )}
-                              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Overnight</p>
-                              <p className="font-medium text-slate-900">{day.overnightLocation?.address || "Not set"}</p>
-                            </div>
-                          </div>
-
-                          {day.notes && (
-                            <div className="bg-amber-50 p-4 rounded-xl border border-amber-100">
-                              <p className="text-sm font-bold text-amber-800 mb-1">Notes for Driver</p>
-                              <p className="text-sm text-amber-700">{day.notes}</p>
-                            </div>
-                          )}
-
-                          {summary?.isValid ? (
-                            <div className="bg-slate-50 p-4 rounded-xl flex flex-wrap gap-6 text-sm">
-                              <div>
-                                <span className="text-slate-500">Day Driving Dist:</span> <span className="font-bold text-slate-900">{summary.totalDrivingDistanceKm.toFixed(1)} km</span>
-                              </div>
-                              <div>
-                                <span className="text-slate-500">Day Driving Time:</span> <span className="font-bold text-slate-900">{Math.round(summary.totalDrivingTimeMins / 60)}h {Math.round(summary.totalDrivingTimeMins % 60)}m</span>
-                              </div>
-                              {summary.totalActivityTimeMins > 0 && (
-                                <div>
-                                  <span className="text-slate-500">Activity Time:</span> <span className="font-bold text-slate-900">{Math.round(summary.totalActivityTimeMins / 60)}h {Math.round(summary.totalActivityTimeMins % 60)}m</span>
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <div className="bg-red-50 p-4 rounded-xl text-sm text-red-600">
-                              Route unavailable for this day. (Missing coordinates or routing error)
-                            </div>
-                          )}
-                        </div>
-                      </details>
-                    </div>
-                  );
-                })}
+              <div className="divide-y divide-slate-100">
+                {itinerary.map((day) => (
+                  <div key={day.dayNumber} className="p-5">
+                    <p className="font-bold text-slate-900">
+                      Day {day.dayNumber} • {new Date(day.date).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      {day.startingLocation?.address?.split(",")[0]} → {day.overnightLocation?.address?.split(",")[0]}
+                    </p>
+                    {day.placesToVisit.length > 0 && (
+                      <p className="text-xs text-slate-600 mt-1">
+                        Attractions: {day.placesToVisit.map((p) => p.location.address.split(",")[0]).join(" • ")}
+                      </p>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
 
-            {/* Whole Trip Summary */}
-            <div className="bg-slate-900 text-white rounded-2xl p-6 md:p-8 flex flex-col md:flex-row justify-between gap-6 items-center shadow-lg">
-              <div className="space-y-2 text-center md:text-left w-full md:w-auto">
-                <p className="text-slate-400 text-sm font-bold uppercase tracking-wider">Total Driving Distance</p>
-                <p className="text-3xl font-black">{routeData?.totalDistanceKm ? routeData.totalDistanceKm.toFixed(0) : 0} km</p>
-              </div>
-              <div className="space-y-2 text-center md:text-left w-full md:w-auto">
-                <p className="text-slate-400 text-sm font-bold uppercase tracking-wider">Est. Driving Time</p>
-                <p className="text-3xl font-black">
-                  {routeData?.totalDurationMins 
-                    ? `${Math.floor(routeData.totalDurationMins / 60)}h ${Math.round(routeData.totalDurationMins % 60)}m` 
-                    : "0h 0m"}
-                </p>
-              </div>
-              <div className="space-y-2 text-center md:text-right w-full md:w-auto border-t md:border-t-0 md:border-l border-slate-700 pt-6 md:pt-0 md:pl-8">
-                <p className="text-slate-400 text-sm font-bold uppercase tracking-wider">Estimated Price</p>
-                <p className="text-2xl font-bold text-yellow-400">Awaiting driver quote</p>
-                <p className="text-xs text-slate-500">Subject to your final approval</p>
+            {/* Submission Actions */}
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-4 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setStep(4)}
+                className="px-6 py-3 border border-slate-200 rounded-xl font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2 w-full sm:w-auto justify-center cursor-pointer"
+              >
+                <ChevronLeft size={16} /> Back to Itinerary
+              </button>
+
+              <div className="flex items-center gap-3 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => handleSubmit(true)}
+                  disabled={loading}
+                  className="px-6 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all flex-1 sm:flex-none cursor-pointer"
+                >
+                  <Save size={16} /> Save as Draft
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSubmit(false)}
+                  disabled={loading}
+                  className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-md shadow-blue-500/20 flex-1 sm:flex-none cursor-pointer"
+                >
+                  {loading ? (
+                    <span>Submitting...</span>
+                  ) : (
+                    <>
+                      <span>Submit Trip Request</span>
+                      <ChevronRight size={16} />
+                    </>
+                  )}
+                </button>
               </div>
             </div>
           </div>
         )}
-
-      </div>
-
-      {/* Navigation Footer */}
-      <div className="bg-slate-50 border-t border-slate-200 p-4 sm:p-6 flex justify-between items-center">
-        {step > 1 ? (
-          <button onClick={() => setStep(s => s - 1)} disabled={loading} className="px-6 py-3 font-bold text-slate-600 hover:bg-slate-200 rounded-xl transition-colors flex items-center gap-2">
-            <ChevronLeft size={18} /> Back
-          </button>
-        ) : <div></div>}
-
-        <div className="flex gap-3">
-          {step === 4 ? (
-            <>
-              <button onClick={() => handleSubmit(true)} disabled={loading} className="px-6 py-3 font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-xl transition-colors flex items-center gap-2 disabled:opacity-50">
-                <Save size={18} /> {loading ? "Saving..." : "Save Draft"}
-              </button>
-              <button onClick={() => handleSubmit(false)} disabled={loading} className="px-8 py-3 font-bold text-white bg-slate-900 hover:bg-slate-800 shadow-lg rounded-xl transition-colors flex items-center gap-2 disabled:opacity-50">
-                {loading ? "Submitting..." : "Submit Trip Request"} <Check size={18} />
-              </button>
-            </>
-          ) : (
-            <button onClick={handleNext} className="px-8 py-3 font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-600/20 rounded-xl transition-colors flex items-center gap-2">
-              Next Step <ChevronRight size={18} />
-            </button>
-          )}
-        </div>
       </div>
     </div>
   );

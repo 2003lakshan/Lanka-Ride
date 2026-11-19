@@ -132,6 +132,43 @@ export default function AdminTripReviewClient({ booking }: { booking: any }) {
       </div>
 
       <div className="space-y-8">
+        {/* Booking Contact & Passenger Details */}
+        <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+          <h2 className="text-xl font-bold text-slate-800 mb-4 border-b pb-2 flex items-center justify-between">
+            <span>Booking Contact & Passenger</span>
+            {booking.customTripDetails?.bookingContact?.isBookingForSomeoneElse && (
+              <span className="text-xs font-extrabold uppercase px-2.5 py-1 bg-amber-50 text-amber-800 rounded-full border border-amber-200">
+                Booked For Someone Else
+              </span>
+            )}
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm mb-4">
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2">
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Booking Contact (Account Holder)</p>
+              <div><span className="text-slate-500">Name:</span> <span className="font-bold text-slate-900">{booking.customTripDetails?.bookingContact?.fullName || booking.passengerDetails?.fullName || "N/A"}</span></div>
+              <div><span className="text-slate-500">Country:</span> <span className="font-medium text-slate-900">{booking.customTripDetails?.bookingContact?.country || booking.passengerDetails?.country || "N/A"}</span></div>
+              <div><span className="text-slate-500">Verified Email:</span> <span className="font-medium text-slate-900">{booking.customTripDetails?.bookingContact?.email || booking.passengerDetails?.email || "N/A"}</span></div>
+              <div><span className="text-slate-500">Verified Phone:</span> <span className="font-medium text-slate-900">{booking.customTripDetails?.bookingContact?.phone || booking.passengerDetails?.whatsappNumber || "N/A"}</span></div>
+            </div>
+
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2">
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Travelling Passenger</p>
+              {booking.customTripDetails?.bookingContact?.isBookingForSomeoneElse ? (
+                <>
+                  <div><span className="text-slate-500">Passenger Name:</span> <span className="font-bold text-slate-900">{booking.customTripDetails.bookingContact.passenger?.fullName || "N/A"}</span></div>
+                  <div><span className="text-slate-500">Passenger Mobile:</span> <span className="font-bold text-slate-900">{booking.customTripDetails.bookingContact.passenger?.phone || "N/A"}</span></div>
+                  <p className="text-xs text-slate-500 mt-2">Driver should coordinate pickups with this passenger.</p>
+                </>
+              ) : (
+                <div className="py-2">
+                  <p className="font-medium text-slate-800">Primary contact is also the travelling passenger.</p>
+                </div>
+              )}
+            </div>
+          </div>
+          <NoteField sectionKey="contact" label="Contact & Passenger" />
+        </section>
+
         {/* Basics */}
         <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
           <h2 className="text-xl font-bold text-slate-800 mb-4 border-b pb-2">Trip Basics</h2>

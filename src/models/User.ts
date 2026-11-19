@@ -9,6 +9,10 @@ export interface IUser extends Document {
   nationality?: string;
   profilePhoto?: string;
   preferredLanguage?: string;
+  isEmailVerified?: boolean;
+  emailVerifiedAt?: Date;
+  isPhoneVerified?: boolean;
+  phoneVerifiedAt?: Date;
   // Driver specific fields
   licenseNumber?: string;
   vehicleRegistration?: string;
@@ -47,6 +51,10 @@ const UserSchema: Schema = new Schema(
     nationality: { type: String },
     profilePhoto: { type: String },
     preferredLanguage: { type: String, default: "English" },
+    isEmailVerified: { type: Boolean, default: false },
+    emailVerifiedAt: { type: Date },
+    isPhoneVerified: { type: Boolean, default: false },
+    phoneVerifiedAt: { type: Date },
     // Driver specific fields
     licenseNumber: { type: String },
     vehicleRegistration: { type: String },

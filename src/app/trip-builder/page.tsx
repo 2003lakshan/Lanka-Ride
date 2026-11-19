@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import dbConnect from "@/lib/mongodb";
 import Booking from "@/models/Booking";
 import VehicleType from "@/models/VehicleType";
+import User from "@/models/User";
 import TripBuilderClient from "./TripBuilderClient";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +24,12 @@ export default async function TripBuilderPage(props: { searchParams: Promise<{ e
   await dbConnect();
   
   const vehicleTypes = await VehicleType.find({ isActive: true }).sort({ sortOrder: 1 }).lean();
+
+  // Fetch current user profile to prefill rider details and verification status
+  const user = await User.findById((session.user as any).id)
+    .select("name email phoneNumber nationality isEmailVerified isPhoneVerified")
+    .lean();
+  const currentUserProfile = user ? JSON.parse(JSON.stringify(user)) : null;
   
   let initialData = null;
   if (searchParams.edit) {
@@ -43,6 +50,7 @@ export default async function TripBuilderPage(props: { searchParams: Promise<{ e
         <TripBuilderClient 
           vehicleTypes={JSON.parse(JSON.stringify(vehicleTypes))} 
           initialData={initialData} 
+          currentUserProfile={currentUserProfile}
         />
       </div>
     </div>

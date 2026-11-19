@@ -376,3 +376,117 @@ export async function sendPasswordChangedConfirmationEmail(
     };
   }
 }
+
+/**
+ * Sends a 6-digit email verification OTP code for custom trip booking contact verification.
+ */
+export async function sendContactVerificationOtpEmail(
+  toEmail: string,
+  otpCode: string
+): Promise<{
+  success: boolean;
+  error?: string;
+  messageId?: string;
+  isDevMock?: boolean;
+  devCode?: string;
+}> {
+  const isConfigured = isEmailConfigured();
+  const isDev = process.env.NODE_ENV !== "production" || process.env.ALLOW_DEV_OTP_MOCK === "true";
+
+  if (!isConfigured) {
+    if (isDev) {
+      console.log(`[EMAIL_DEV_MOCK] 📧 To: ${toEmail} | Verification Code: ${otpCode}`);
+      return {
+        success: true,
+        isDevMock: true,
+        devCode: otpCode,
+      };
+    }
+    return {
+      success: false,
+      error: "Email delivery service is not configured on this server. Please configure SMTP in environment variables.",
+    };
+  }
+
+  const transporter = getTransporter();
+  if (!transporter) {
+    return {
+      success: false,
+      error: "SMTP transporter could not be initialized.",
+    };
+  }
+
+  const from = getSenderAddress();
+  const mailOptions = {
+    from,
+    to: toEmail,
+    subject: "Your Lanka Airport Ride Trip Verification Code",
+    text: `Your verification code for custom trip planning is: ${otpCode}\n\nThis code will expire in 10 minutes.\n\nIf you did not initiate this custom trip request, please ignore this email.`,
+    html: `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Trip Contact Verification Code</title>
+      </head>
+      <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px;">
+        <table width="100%" border="0" cellspacing="0" cellpadding="0">
+          <tr>
+            <td align="center">
+              <table width="100%" max-width="500" style="max-width: 500px; background-color: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="background-color: #2563eb; padding: 24px; text-align: center;">
+                    <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 700; letter-spacing: 0.5px;">Lanka Airport Ride</h1>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 32px 28px;">
+                    <h2 style="color: #0f172a; margin-top: 0; font-size: 18px; font-weight: 600;">Trip Contact Verification</h2>
+                    <p style="color: #475569; font-size: 14px; line-height: 1.6; margin-bottom: 24px;">
+                      Please verify your email address to confirm your custom trip request. Use the 6-digit verification code below:
+                    </p>
+                    <div style="background-color: #f1f5f9; border-radius: 12px; padding: 20px; text-align: center; margin-bottom: 24px;">
+                      <span style="font-size: 32px; font-weight: 800; letter-spacing: 8px; color: #1e293b; font-family: monospace;">
+                        ${otpCode}
+                      </span>
+                    </div>
+                    <p style="color: #64748b; font-size: 13px; line-height: 1.5; margin-bottom: 8px;">
+                      ⏳ This code is single-use and will expire in <strong>10 minutes</strong>.
+                    </p>
+                    <p style="color: #94a3b8; font-size: 12px; line-height: 1.5; margin: 0;">
+                      If you did not request this trip, you can safely ignore this email.
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="background-color: #f8fafc; padding: 16px; text-align: center; border-top: 1px solid #e2e8f0;">
+                    <p style="color: #94a3b8; font-size: 12px; margin: 0;">
+                      © ${new Date().getFullYear()} Lanka Airport Ride. All rights reserved.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `,
+  };
+
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`[Email Delivery] Contact verification OTP sent to ${toEmail}, Message ID: ${info.messageId}`);
+    return { success: true, messageId: info.messageId };
+  } catch (error: any) {
+    console.error("[Email Delivery Error] Failed to send contact verification OTP:", {
+      code: error.code,
+      message: error.message,
+    });
+    return {
+      success: false,
+      error: `Email delivery failed: ${error.message}`,
+    };
+  }
+}
