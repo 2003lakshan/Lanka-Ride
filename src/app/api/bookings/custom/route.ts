@@ -5,6 +5,7 @@ import dbConnect from "@/lib/mongodb";
 import Booking from "@/models/Booking";
 import User from "@/models/User";
 import ContactVerification from "@/models/ContactVerification";
+import RiderIdentity from "@/models/RiderIdentity";
 
 export async function POST(req: Request) {
   try {
@@ -76,6 +77,34 @@ export async function POST(req: Request) {
           { status: 400 }
         );
       }
+
+      // Verify identity document on server
+      const identityDoc = await RiderIdentity.findOne({ userId: user._id });
+      if (!identityDoc) {
+        return NextResponse.json(
+          { error: "Identity verification document is required. Please upload your National ID Card or Passport." },
+          { status: 400 }
+        );
+      }
+
+      if (identityDoc.status === "REJECTED") {
+        return NextResponse.json(
+          { error: `Your identity document was rejected: "${identityDoc.rejectionReason}". Please re-upload your document.` },
+          { status: 400 }
+        );
+      }
+
+      const isIdentityComplete =
+        identityDoc.documentType === "NATIONAL_ID"
+          ? Boolean(identityDoc.files?.front?.fileId && identityDoc.files?.back?.fileId)
+          : Boolean(identityDoc.files?.photoPage?.fileId);
+
+      if (!isIdentityComplete) {
+        return NextResponse.json(
+          { error: `Incomplete identity documents. Please upload the required ${identityDoc.documentType === "NATIONAL_ID" ? "front and back images" : "photo/details page"}.` },
+          { status: 400 }
+        );
+      }
     }
 
     let booking;
@@ -133,8 +162,39 @@ export async function POST(req: Request) {
     booking.distanceKm = payload.totalDistanceKm || 0;
     booking.durationMins = payload.totalDurationMins || 0;
     
+    const activeIdentity = await RiderIdentity.findOne({ userId: user._id });
+
     booking.customTripDetails = {
       isCustomTrip: true,
+      identityVerification: activeIdentity ? {
+        identityId: activeIdentity._id,
+        documentType: activeIdentity.documentType,
+        status: activeIdentity.status,
+        rejectionReason: activeIdentity.rejectionReason,
+        reviewedBy: activeIdentity.reviewedBy,
+        reviewedAt: activeIdentity.reviewedAt,
+        files: {
+          front: activeIdentity.files?.front ? {
+            fileId: activeIdentity.files.front.fileId,
+            originalName: activeIdentity.files.front.originalName,
+            mimeType: activeIdentity.files.front.mimeType,
+            size: activeIdentity.files.front.size,
+          } : undefined,
+          back: activeIdentity.files?.back ? {
+            fileId: activeIdentity.files.back.fileId,
+            originalName: activeIdentity.files.back.originalName,
+            mimeType: activeIdentity.files.back.mimeType,
+            size: activeIdentity.files.back.size,
+          } : undefined,
+          photoPage: activeIdentity.files?.photoPage ? {
+            fileId: activeIdentity.files.photoPage.fileId,
+            originalName: activeIdentity.files.photoPage.originalName,
+            mimeType: activeIdentity.files.photoPage.mimeType,
+            size: activeIdentity.files.photoPage.size,
+          } : undefined,
+        },
+        uploadedAt: activeIdentity.updatedAt,
+      } : undefined,
       bookingContact: contactDetails ? {
         fullName: resolvedContactName,
         country: resolvedCountry,

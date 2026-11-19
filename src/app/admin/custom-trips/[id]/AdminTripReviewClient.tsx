@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle, Send, ArrowLeft } from "lucide-react";
+import { CheckCircle, Send, ArrowLeft, FileText, ExternalLink, ShieldCheck, AlertCircle, XCircle, CheckCircle2, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { formatSriLankanDate } from "@/lib/dateTime";
 
@@ -20,6 +20,64 @@ export default function AdminTripReviewClient({ booking }: { booking: any }) {
 
   const effectiveAmount = priceMode === "ACCEPT_BUDGET" ? proposedBudget : confirmedAmount;
   const effectiveCurrency = priceMode === "ACCEPT_BUDGET" ? proposedCurrency : confirmedCurrency;
+
+  // Identity review state
+  const idVerification = booking.customTripDetails?.identityVerification;
+  const [identityStatus, setIdentityStatus] = useState<string>(
+    idVerification?.status || "NOT_SUBMITTED"
+  );
+  const [identityRejectionReason, setIdentityRejectionReason] = useState<string>(
+    idVerification?.rejectionReason || ""
+  );
+  const [showRejectModal, setShowRejectModal] = useState<boolean>(false);
+  const [rejectInput, setRejectInput] = useState<string>("");
+  const [identityReviewLoading, setIdentityReviewLoading] = useState<boolean>(false);
+  const [identityReviewMsg, setIdentityReviewMsg] = useState<string>("");
+
+  const handleReviewIdentity = async (action: "APPROVE" | "REJECT", reason?: string) => {
+    const identityId = idVerification?.identityId;
+    if (!identityId) {
+      alert("No identity document record ID found.");
+      return;
+    }
+    if (action === "REJECT" && (!reason || !reason.trim())) {
+      alert("Please provide a reason for rejecting the document.");
+      return;
+    }
+
+    setIdentityReviewLoading(true);
+    setIdentityReviewMsg("");
+    try {
+      const res = await fetch("/api/admin/identity-documents/review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          identityId,
+          action,
+          rejectionReason: reason,
+          bookingId: booking._id,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setIdentityStatus(data.status);
+        if (action === "REJECT") {
+          setIdentityRejectionReason(reason || "");
+          setShowRejectModal(false);
+          setRejectInput("");
+        } else {
+          setIdentityRejectionReason("");
+        }
+        setIdentityReviewMsg(`Identity document ${data.status.toLowerCase()} successfully!`);
+      } else {
+        alert(data.error || "Failed to update identity review status.");
+      }
+    } catch {
+      alert("Network error while submitting identity review.");
+    } finally {
+      setIdentityReviewLoading(false);
+    }
+  };
 
   const handleNoteChange = (key: string, value: string) => {
     setNotes(prev => ({ ...prev, [key]: value }));
@@ -167,6 +225,201 @@ export default function AdminTripReviewClient({ booking }: { booking: any }) {
             </div>
           </div>
           <NoteField sectionKey="contact" label="Contact & Passenger" />
+        </section>
+
+        {/* Identity Document Verification Review */}
+        <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+          <div className="flex items-center justify-between border-b pb-3 mb-4">
+            <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+              <ShieldCheck className="text-blue-600" size={22} />
+              Identity Document Verification
+            </h2>
+            <div>
+              {identityStatus === "APPROVED" ? (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <CheckCircle2 size={14} /> Approved
+                </span>
+              ) : identityStatus === "REJECTED" ? (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold bg-red-50 text-red-700 border border-red-200">
+                  <XCircle size={14} /> Rejected
+                </span>
+              ) : identityStatus === "PENDING_REVIEW" ? (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold bg-amber-50 text-amber-800 border border-amber-200">
+                  <AlertCircle size={14} /> Pending Review
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold bg-slate-100 text-slate-600 border border-slate-200">
+                  Not Submitted
+                </span>
+              )}
+            </div>
+          </div>
+
+          {identityReviewMsg && (
+            <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-bold flex items-center gap-2">
+              <CheckCircle2 size={16} />
+              <span>{identityReviewMsg}</span>
+            </div>
+          )}
+
+          {idVerification ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-100">
+                <span className="text-xs font-bold uppercase text-slate-500">Document Type</span>
+                <span className="text-sm font-extrabold text-slate-900">
+                  {idVerification.documentType === "NATIONAL_ID" ? "National ID Card" : "Passport"}
+                </span>
+              </div>
+
+              {identityRejectionReason && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-800">
+                  <strong>Rejection Reason:</strong> {identityRejectionReason}
+                </div>
+              )}
+
+              {/* Uploaded Files Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {idVerification.documentType === "NATIONAL_ID" ? (
+                  <>
+                    <div className="p-4 border rounded-xl bg-slate-50 flex flex-col justify-between">
+                      <div>
+                        <span className="text-xs font-bold text-slate-500 uppercase">National ID — Front</span>
+                        <p className="text-sm font-medium text-slate-900 mt-1 truncate">
+                          {idVerification.files?.front?.originalName || "No file uploaded"}
+                        </p>
+                        {idVerification.files?.front?.size && (
+                          <p className="text-xs text-slate-400 mt-0.5">
+                            {(idVerification.files.front.size / (1024 * 1024)).toFixed(2)} MB • {idVerification.files.front.mimeType}
+                          </p>
+                        )}
+                      </div>
+                      {idVerification.files?.front?.fileId && (
+                        <a
+                          href={`/api/identity-documents/view?fileId=${idVerification.files.front.fileId}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-800 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-xs"
+                        >
+                          <ExternalLink size={13} />
+                          <span>View Document</span>
+                        </a>
+                      )}
+                    </div>
+
+                    <div className="p-4 border rounded-xl bg-slate-50 flex flex-col justify-between">
+                      <div>
+                        <span className="text-xs font-bold text-slate-500 uppercase">National ID — Back</span>
+                        <p className="text-sm font-medium text-slate-900 mt-1 truncate">
+                          {idVerification.files?.back?.originalName || "No file uploaded"}
+                        </p>
+                        {idVerification.files?.back?.size && (
+                          <p className="text-xs text-slate-400 mt-0.5">
+                            {(idVerification.files.back.size / (1024 * 1024)).toFixed(2)} MB • {idVerification.files.back.mimeType}
+                          </p>
+                        )}
+                      </div>
+                      {idVerification.files?.back?.fileId && (
+                        <a
+                          href={`/api/identity-documents/view?fileId=${idVerification.files.back.fileId}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-800 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-xs"
+                        >
+                          <ExternalLink size={13} />
+                          <span>View Document</span>
+                        </a>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <div className="sm:col-span-2 p-4 border rounded-xl bg-slate-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <div>
+                      <span className="text-xs font-bold text-slate-500 uppercase">Passport Photo & Details Page</span>
+                      <p className="text-sm font-medium text-slate-900 mt-1">
+                        {idVerification.files?.photoPage?.originalName || "No file uploaded"}
+                      </p>
+                      {idVerification.files?.photoPage?.size && (
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          {(idVerification.files.photoPage.size / (1024 * 1024)).toFixed(2)} MB • {idVerification.files.photoPage.mimeType}
+                        </p>
+                      )}
+                    </div>
+                    {idVerification.files?.photoPage?.fileId && (
+                      <a
+                        href={`/api/identity-documents/view?fileId=${idVerification.files.photoPage.fileId}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-800 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-xs"
+                      >
+                        <ExternalLink size={13} />
+                        <span>View Document</span>
+                      </a>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Admin Review Action Buttons */}
+              <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  disabled={identityReviewLoading || identityStatus === "APPROVED"}
+                  onClick={() => handleReviewIdentity("APPROVE")}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+                >
+                  {identityReviewLoading ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                  <span>Approve Document</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={identityReviewLoading}
+                  onClick={() => setShowRejectModal(!showRejectModal)}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+                >
+                  <XCircle size={14} />
+                  <span>Reject with Reason</span>
+                </button>
+              </div>
+
+              {/* Rejection Reason Form */}
+              {showRejectModal && (
+                <div className="p-4 bg-red-50/70 border border-red-200 rounded-xl space-y-3 animate-in fade-in duration-200">
+                  <label className="block text-xs font-bold text-red-900">
+                    Rejection Reason (Displayed to Rider for Re-upload) *
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={rejectInput}
+                    onChange={(e) => setRejectInput(e.target.value)}
+                    placeholder="e.g. The photo is blurry and document text is unreadable. Please provide a clear scan."
+                    className="w-full p-2.5 bg-white border border-red-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-red-400"
+                  />
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowRejectModal(false)}
+                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      disabled={identityReviewLoading || !rejectInput.trim()}
+                      onClick={() => handleReviewIdentity("REJECT", rejectInput)}
+                      className="px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold disabled:opacity-50"
+                    >
+                      Confirm Rejection
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-slate-400 text-xs italic">
+              No identity document on record for this trip request.
+            </p>
+          )}
         </section>
 
         {/* Basics */}

@@ -13,6 +13,8 @@ export interface IUser extends Document {
   emailVerifiedAt?: Date;
   isPhoneVerified?: boolean;
   phoneVerifiedAt?: Date;
+  identityStatus?: "NOT_SUBMITTED" | "PENDING_REVIEW" | "APPROVED" | "REJECTED";
+  identityDocumentId?: mongoose.Types.ObjectId;
   // Driver specific fields
   licenseNumber?: string;
   vehicleRegistration?: string;
@@ -55,6 +57,12 @@ const UserSchema: Schema = new Schema(
     emailVerifiedAt: { type: Date },
     isPhoneVerified: { type: Boolean, default: false },
     phoneVerifiedAt: { type: Date },
+    identityStatus: {
+      type: String,
+      enum: ["NOT_SUBMITTED", "PENDING_REVIEW", "APPROVED", "REJECTED"],
+      default: "NOT_SUBMITTED",
+    },
+    identityDocumentId: { type: Schema.Types.ObjectId, ref: "RiderIdentity" },
     // Driver specific fields
     licenseNumber: { type: String },
     vehicleRegistration: { type: String },

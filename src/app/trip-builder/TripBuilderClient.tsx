@@ -28,6 +28,15 @@ import {
   User,
   UserCheck,
   Sparkles,
+  Upload,
+  FileText,
+  X,
+  ExternalLink,
+  File,
+  ImageIcon,
+  Clock,
+  XCircle,
+  Loader2,
 } from "lucide-react";
 import PlacesAutocompleteInput, { LocationState } from "@/components/booking/PlacesAutocompleteInput";
 import MapLocationPicker from "@/components/booking/MapLocationPicker";
@@ -63,13 +72,157 @@ interface TripBuilderClientProps {
     nationality?: string;
     isEmailVerified?: boolean;
     isPhoneVerified?: boolean;
+    identityStatus?: string;
   } | null;
+  existingIdentity?: {
+    _id?: string;
+    documentType: "NATIONAL_ID" | "PASSPORT";
+    status: "PENDING_REVIEW" | "APPROVED" | "REJECTED";
+    acknowledgedPurpose: boolean;
+    rejectionReason?: string;
+    files?: {
+      front?: { fileId: string; originalName: string; mimeType: string; size: number; viewUrl?: string };
+      back?: { fileId: string; originalName: string; mimeType: string; size: number; viewUrl?: string };
+      photoPage?: { fileId: string; originalName: string; mimeType: string; size: number; viewUrl?: string };
+    };
+  } | null;
+}
+
+function DocumentUploadCard({
+  title,
+  fileKey,
+  fileData,
+  uploading,
+  disabled,
+  onUpload,
+  onRemove,
+}: {
+  title: string;
+  fileKey: string;
+  fileData?: any;
+  uploading: boolean;
+  disabled: boolean;
+  onUpload: (file: File) => void;
+  onRemove: () => void;
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  return (
+    <div
+      className={`p-4 rounded-xl border transition-all ${
+        fileData?.fileId
+          ? "bg-emerald-50/30 border-emerald-200"
+          : "bg-slate-50 border-slate-200 hover:border-slate-300"
+      }`}
+    >
+      <input
+        type="file"
+        ref={fileInputRef}
+        accept="image/jpeg,image/png,image/jpg,application/pdf"
+        className="hidden"
+        onChange={(e) => {
+          if (e.target.files && e.target.files[0]) {
+            onUpload(e.target.files[0]);
+            e.target.value = "";
+          }
+        }}
+      />
+
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">{title}</span>
+        {fileData?.fileId && (
+          <span className="inline-flex items-center gap-1 text-[11px] font-extrabold text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-full">
+            <CheckCircle2 size={12} /> Uploaded
+          </span>
+        )}
+      </div>
+
+      {uploading ? (
+        <div className="h-28 flex flex-col items-center justify-center gap-2 text-slate-500">
+          <Loader2 size={24} className="animate-spin text-blue-600" />
+          <span className="text-xs font-semibold">Uploading & validating file...</span>
+        </div>
+      ) : fileData?.fileId ? (
+        <div className="space-y-3">
+          <div className="flex items-center gap-3 p-2.5 bg-white rounded-lg border border-slate-200">
+            {fileData.mimeType === "application/pdf" ? (
+              <div className="w-10 h-10 rounded-lg bg-red-50 text-red-600 flex items-center justify-center font-bold text-xs shrink-0 border border-red-100">
+                PDF
+              </div>
+            ) : fileData.viewUrl ? (
+              <img
+                src={fileData.viewUrl}
+                alt="preview"
+                className="w-10 h-10 rounded-lg object-cover border border-slate-200 shrink-0"
+              />
+            ) : (
+              <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                <FileText size={18} />
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold text-slate-900 truncate">{fileData.originalName}</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                {(fileData.size / (1024 * 1024)).toFixed(2)} MB • {fileData.mimeType === "application/pdf" ? "PDF Document" : "Image"}
+              </p>
+            </div>
+            {fileData.viewUrl && (
+              <a
+                href={fileData.viewUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="p-1.5 text-slate-500 hover:text-blue-600 rounded-lg hover:bg-slate-50 transition-colors"
+                title="View Document in New Tab"
+              >
+                <ExternalLink size={15} />
+              </a>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="flex-1 py-1.5 px-3 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer"
+            >
+              <RefreshCw size={12} /> Replace
+            </button>
+            <button
+              type="button"
+              onClick={onRemove}
+              className="py-1.5 px-3 bg-white hover:bg-red-50 text-red-600 border border-red-200 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer"
+            >
+              <Trash2 size={12} /> Remove
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div
+          onClick={() => {
+            if (!disabled) fileInputRef.current?.click();
+          }}
+          className={`h-28 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-1.5 transition-all text-center px-4 ${
+            disabled
+              ? "border-slate-200 bg-slate-100/50 cursor-not-allowed opacity-60"
+              : "border-slate-300 hover:border-blue-500 hover:bg-blue-50/20 cursor-pointer"
+          }`}
+        >
+          <Upload size={20} className={disabled ? "text-slate-400" : "text-blue-600"} />
+          <span className="text-xs font-bold text-slate-800">
+            {disabled ? "Acknowledge purpose above to upload" : "Click to select or drop document"}
+          </span>
+          <span className="text-[10px] text-slate-400">JPG, PNG, or PDF up to 5 MB</span>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function TripBuilderClient({
   vehicleTypes,
   initialData,
   currentUserProfile,
+  existingIdentity,
 }: TripBuilderClientProps) {
   const router = useRouter();
 
@@ -146,6 +299,110 @@ export default function TripBuilderClient({
     const t = setInterval(() => setEmailCooldown((c) => Math.max(0, c - 1)), 1000);
     return () => clearInterval(t);
   }, [emailCooldown]);
+
+  // Identity Document State
+  const initialIdentity = existingIdentity || initialData?.customTripDetails?.identityVerification;
+  const [documentType, setDocumentType] = useState<"NATIONAL_ID" | "PASSPORT">(
+    initialIdentity?.documentType || "PASSPORT"
+  );
+  const [acknowledgedPurpose, setAcknowledgedPurpose] = useState<boolean>(
+    Boolean(initialIdentity?.acknowledgedPurpose ?? (initialIdentity?.status ? true : false))
+  );
+  const [identityStatus, setIdentityStatus] = useState<string>(
+    initialIdentity?.status || "NOT_SUBMITTED"
+  );
+  const [identityRejectionReason, setIdentityRejectionReason] = useState<string>(
+    initialIdentity?.rejectionReason || ""
+  );
+  const [identityFiles, setIdentityFiles] = useState<{
+    front?: any;
+    back?: any;
+    photoPage?: any;
+  }>(initialIdentity?.files || {});
+  const [uploadingKey, setUploadingKey] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string>("");
+
+  const isIdentityComplete = useMemo(() => {
+    if (!acknowledgedPurpose) return false;
+    if (documentType === "NATIONAL_ID") {
+      return Boolean(identityFiles?.front?.fileId && identityFiles?.back?.fileId);
+    }
+    return Boolean(identityFiles?.photoPage?.fileId);
+  }, [acknowledgedPurpose, documentType, identityFiles]);
+
+  const handleFileUpload = async (fileKey: "front" | "back" | "photoPage", file: File) => {
+    setUploadError("");
+    if (!acknowledgedPurpose) {
+      setUploadError("Please check the acknowledgment box before uploading your document.");
+      return;
+    }
+
+    if (!file) return;
+
+    // Client-side size check (5 MB)
+    const maxBytes = 5 * 1024 * 1024;
+    if (file.size > maxBytes) {
+      setUploadError(`File size exceeds 5 MB limit (${(file.size / (1024 * 1024)).toFixed(2)} MB). Please select a smaller file.`);
+      return;
+    }
+
+    // Client-side format check
+    const allowedTypes = ["image/jpeg", "image/png", "image/jpg", "application/pdf"];
+    if (!allowedTypes.includes(file.type)) {
+      setUploadError("Invalid file type. Only JPG, PNG, and PDF files are accepted.");
+      return;
+    }
+
+    setUploadingKey(fileKey);
+    try {
+      const formData = new FormData();
+      formData.append("documentType", documentType);
+      formData.append("fileKey", fileKey);
+      formData.append("acknowledgedPurpose", "true");
+      formData.append("file", file);
+
+      const res = await fetch("/api/identity-documents/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setIdentityFiles(data.files || {});
+        setIdentityStatus(data.status || "PENDING_REVIEW");
+        setIdentityRejectionReason("");
+      } else {
+        setUploadError(data.error || "Failed to upload document.");
+      }
+    } catch {
+      setUploadError("Network error while uploading document.");
+    } finally {
+      setUploadingKey(null);
+    }
+  };
+
+  const handleFileRemove = async (fileKey: "front" | "back" | "photoPage") => {
+    setUploadError("");
+    setUploadingKey(fileKey);
+    try {
+      const res = await fetch("/api/identity-documents/remove", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileKey }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setIdentityFiles(data.files || {});
+        setIdentityStatus(data.status);
+      } else {
+        setUploadError(data.error || "Failed to remove document.");
+      }
+    } catch {
+      setUploadError("Network error while removing document.");
+    } finally {
+      setUploadingKey(null);
+    }
+  };
 
   // =========================================================
   // STEP 2: Basics
@@ -441,6 +698,18 @@ export default function TripBuilderClient({
     if (!contactPhone.trim() || contactPhone.replace(/\D/g, "").length < 7) {
       return "Please enter a valid mobile number with country code.";
     }
+    if (!acknowledgedPurpose) {
+      return "Please acknowledge the identity document verification purpose.";
+    }
+    if (documentType === "NATIONAL_ID") {
+      if (!identityFiles?.front?.fileId) return "Please upload the front image of your National ID Card.";
+      if (!identityFiles?.back?.fileId) return "Please upload the back image of your National ID Card.";
+    } else {
+      if (!identityFiles?.photoPage?.fileId) return "Please upload your Passport photo & details page.";
+    }
+    if (identityStatus === "REJECTED") {
+      return `Your identity document was rejected: "${identityRejectionReason}". Please re-upload before continuing.`;
+    }
     if (isBookingForSomeoneElse) {
       if (!passengerFullName.trim()) {
         return "Please enter the travelling passenger's full name.";
@@ -584,6 +853,8 @@ export default function TripBuilderClient({
     isEmailVerified &&
     contactPhone.trim() &&
     contactPhone.replace(/\D/g, "").length >= 7 &&
+    isIdentityComplete &&
+    identityStatus !== "REJECTED" &&
     (!isBookingForSomeoneElse || (passengerFullName.trim() && passengerPhone.trim() && passengerPhone.replace(/\D/g, "").length >= 7)) &&
     confirmedAccuracy
   );
@@ -820,6 +1091,225 @@ export default function TripBuilderClient({
                     onChange={(val) => setContactPhone(val)}
                     placeholder="77 123 4567"
                   />
+                </div>
+              </div>
+            </div>
+
+            {/* Identity Document Verification */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-6 shadow-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-2">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck size={20} className="text-blue-600" />
+                  <h3 className="font-bold text-slate-900 text-base">
+                    Identity Document Verification
+                  </h3>
+                </div>
+                <div>
+                  {identityStatus === "APPROVED" ? (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      <CheckCircle2 size={13} />
+                      Verified • Approved
+                    </span>
+                  ) : identityStatus === "REJECTED" ? (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold bg-red-50 text-red-700 border border-red-200">
+                      <XCircle size={13} />
+                      Document Rejected • Re-upload Required
+                    </span>
+                  ) : identityStatus === "PENDING_REVIEW" ? (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold bg-amber-50 text-amber-800 border border-amber-200">
+                      <Clock size={13} />
+                      Pending Review
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold bg-slate-100 text-slate-600 border border-slate-200">
+                      Document Required
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Explanatory Notice */}
+              <div className="p-4 bg-blue-50/60 border border-blue-100 rounded-xl space-y-2 text-xs text-slate-700 leading-relaxed">
+                <p className="font-semibold text-blue-900 flex items-center gap-1.5">
+                  <ShieldCheck size={15} className="text-blue-600 shrink-0" />
+                  Official Identity Verification for Safe Travel
+                </p>
+                <p>
+                  To comply with Sri Lankan tourist transport regulations and ensure secure passenger identification, a valid government-issued identity document is required for all custom bookings.
+                </p>
+                <p className="text-[11px] text-slate-500">
+                  🔒 <strong>Private & Protected:</strong> Your documents are stored in encrypted private storage, strictly restricted to you and authorized compliance personnel.
+                </p>
+              </div>
+
+              {/* Status Alert Banner */}
+              {identityStatus === "PENDING_REVIEW" && (
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-start gap-2.5">
+                  <Clock size={16} className="text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold">Identity Review Status: Pending Review</p>
+                    <p className="mt-0.5 text-amber-800">
+                      Your identity documents have been submitted and are queued for compliance review during trip approval. You can continue building and submitting your trip now!
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {identityStatus === "REJECTED" && (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-xs text-red-900 flex items-start gap-2.5">
+                  <XCircle size={16} className="text-red-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold">Identity Document Rejected</p>
+                    <p className="mt-0.5 text-red-800">
+                      <strong>Reason:</strong> {identityRejectionReason || "Uploaded documents were unclear or could not be verified."}
+                    </p>
+                    <p className="mt-1 font-semibold text-red-900">
+                      Please upload a clear, legible replacement below to proceed.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {identityStatus === "APPROVED" && (
+                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 flex items-start gap-2.5">
+                  <CheckCircle2 size={16} className="text-emerald-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold">Identity Verified & Approved</p>
+                    <p className="mt-0.5 text-emerald-800">
+                      Your government identity document has been approved by compliance. You are ready to book custom tours.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Purpose Acknowledgment Checkbox */}
+              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={acknowledgedPurpose}
+                    onChange={(e) => {
+                      setAcknowledgedPurpose(e.target.checked);
+                      setUploadError("");
+                    }}
+                    className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 mt-0.5 cursor-pointer"
+                  />
+                  <span className="text-xs font-semibold text-slate-800 leading-normal">
+                    I acknowledge that this document is collected solely for booking identity verification and passenger safety in Sri Lanka, and confirm that the uploaded document is authentic and belongs to me. *
+                  </span>
+                </label>
+              </div>
+
+              {/* Document Type Selector */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                  Document Type *
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDocumentType("NATIONAL_ID");
+                      setUploadError("");
+                    }}
+                    className={`p-4 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between ${
+                      documentType === "NATIONAL_ID"
+                        ? "border-blue-600 bg-blue-50/50 shadow-xs"
+                        : "border-slate-200 hover:border-slate-300 bg-white"
+                    }`}
+                  >
+                    <div>
+                      <p className="text-xs font-extrabold text-slate-900">National ID Card</p>
+                      <p className="text-[11px] text-slate-500 mt-0.5">Requires front and back images / PDF</p>
+                    </div>
+                    <div
+                      className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                        documentType === "NATIONAL_ID" ? "border-blue-600 bg-blue-600" : "border-slate-300"
+                      }`}
+                    >
+                      {documentType === "NATIONAL_ID" && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDocumentType("PASSPORT");
+                      setUploadError("");
+                    }}
+                    className={`p-4 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between ${
+                      documentType === "PASSPORT"
+                        ? "border-blue-600 bg-blue-50/50 shadow-xs"
+                        : "border-slate-200 hover:border-slate-300 bg-white"
+                    }`}
+                  >
+                    <div>
+                      <p className="text-xs font-extrabold text-slate-900">Passport</p>
+                      <p className="text-[11px] text-slate-500 mt-0.5">Requires photo & details page</p>
+                    </div>
+                    <div
+                      className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                        documentType === "PASSPORT" ? "border-blue-600 bg-blue-600" : "border-slate-300"
+                      }`}
+                    >
+                      {documentType === "PASSPORT" && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Upload Error Display */}
+              {uploadError && (
+                <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs font-semibold flex items-center gap-2">
+                  <AlertCircle size={15} className="shrink-0" />
+                  <span>{uploadError}</span>
+                </div>
+              )}
+
+              {/* Upload Dropzones */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between text-xs text-slate-500">
+                  <span className="font-semibold text-slate-700">
+                    Required Files ({documentType === "NATIONAL_ID" ? "Front & Back" : "Photo / Details Page"})
+                  </span>
+                  <span className="font-medium text-slate-400">Accepted: JPG, PNG, PDF • Max 5 MB each</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {documentType === "NATIONAL_ID" ? (
+                    <>
+                      <DocumentUploadCard
+                        title="Front of National ID"
+                        fileKey="front"
+                        fileData={identityFiles.front}
+                        uploading={uploadingKey === "front"}
+                        disabled={!acknowledgedPurpose}
+                        onUpload={(f) => handleFileUpload("front", f)}
+                        onRemove={() => handleFileRemove("front")}
+                      />
+                      <DocumentUploadCard
+                        title="Back of National ID"
+                        fileKey="back"
+                        fileData={identityFiles.back}
+                        uploading={uploadingKey === "back"}
+                        disabled={!acknowledgedPurpose}
+                        onUpload={(f) => handleFileUpload("back", f)}
+                        onRemove={() => handleFileRemove("back")}
+                      />
+                    </>
+                  ) : (
+                    <div className="sm:col-span-2">
+                      <DocumentUploadCard
+                        title="Passport Photo & Details Page"
+                        fileKey="photoPage"
+                        fileData={identityFiles.photoPage}
+                        uploading={uploadingKey === "photoPage"}
+                        disabled={!acknowledgedPurpose}
+                        onUpload={(f) => handleFileUpload("photoPage", f)}
+                        onRemove={() => handleFileRemove("photoPage")}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1393,7 +1883,7 @@ export default function TripBuilderClient({
                   Edit
                 </button>
               </div>
-              <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
                 <div>
                   <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Booking Contact</p>
                   <p className="font-medium text-slate-900">{contactFullName}</p>
@@ -1414,6 +1904,21 @@ export default function TripBuilderClient({
                     <Phone size={14} className="text-slate-400 shrink-0" />
                     <span>{contactPhone}</span>
                   </p>
+                </div>
+
+                <div>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Identity Document</p>
+                  <div className="flex items-center gap-1.5 font-medium text-slate-900 text-sm">
+                    <ShieldCheck size={14} className="text-blue-600 shrink-0" />
+                    <span>{documentType === "NATIONAL_ID" ? "National ID Card" : "Passport"}</span>
+                  </div>
+                  <span className={`inline-block mt-1 text-[10px] uppercase font-extrabold px-2 py-0.5 rounded border ${
+                    identityStatus === "APPROVED"
+                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                      : "bg-amber-50 text-amber-700 border-amber-200"
+                  }`}>
+                    {identityStatus === "APPROVED" ? "Approved" : "Pending Review"}
+                  </span>
                 </div>
 
                 <div>

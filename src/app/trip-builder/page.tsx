@@ -5,6 +5,8 @@ import dbConnect from "@/lib/mongodb";
 import Booking from "@/models/Booking";
 import VehicleType from "@/models/VehicleType";
 import User from "@/models/User";
+import RiderIdentity from "@/models/RiderIdentity";
+import { generateSignedDocumentUrl } from "@/lib/identityStorage";
 import TripBuilderClient from "./TripBuilderClient";
 
 export const dynamic = "force-dynamic";
@@ -27,9 +29,23 @@ export default async function TripBuilderPage(props: { searchParams: Promise<{ e
 
   // Fetch current user profile to prefill rider details and verification status
   const user = await User.findById((session.user as any).id)
-    .select("name email phoneNumber nationality isEmailVerified isPhoneVerified")
+    .select("name email phoneNumber nationality isEmailVerified isPhoneVerified identityStatus")
     .lean();
   const currentUserProfile = user ? JSON.parse(JSON.stringify(user)) : null;
+
+  // Fetch rider's existing identity document
+  const rawIdentity = await RiderIdentity.findOne({ userId: (session.user as any).id }).lean();
+  let existingIdentity = null;
+  if (rawIdentity) {
+    existingIdentity = JSON.parse(JSON.stringify(rawIdentity));
+    if (existingIdentity.files) {
+      for (const key of ["front", "back", "photoPage"]) {
+        if (existingIdentity.files[key]?.fileId) {
+          existingIdentity.files[key].viewUrl = generateSignedDocumentUrl(existingIdentity.files[key].fileId, 3600);
+        }
+      }
+    }
+  }
   
   let initialData = null;
   if (searchParams.edit) {
@@ -51,6 +67,7 @@ export default async function TripBuilderPage(props: { searchParams: Promise<{ e
           vehicleTypes={JSON.parse(JSON.stringify(vehicleTypes))} 
           initialData={initialData} 
           currentUserProfile={currentUserProfile}
+          existingIdentity={existingIdentity}
         />
       </div>
     </div>

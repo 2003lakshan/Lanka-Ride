@@ -152,6 +152,35 @@ export interface ICustomTripDetails {
     confirmedAccuracy: boolean;
     verifiedAt?: Date;
   };
+  identityVerification?: {
+    identityId?: mongoose.Types.ObjectId | string;
+    documentType?: "NATIONAL_ID" | "PASSPORT";
+    status?: "PENDING_REVIEW" | "APPROVED" | "REJECTED";
+    rejectionReason?: string;
+    reviewedBy?: mongoose.Types.ObjectId | string;
+    reviewedAt?: Date;
+    files?: {
+      front?: {
+        fileId: string;
+        originalName: string;
+        mimeType: string;
+        size: number;
+      };
+      back?: {
+        fileId: string;
+        originalName: string;
+        mimeType: string;
+        size: number;
+      };
+      photoPage?: {
+        fileId: string;
+        originalName: string;
+        mimeType: string;
+        size: number;
+      };
+    };
+    uploadedAt?: Date;
+  };
 }
 
 export interface IBooking extends Document {
@@ -347,6 +376,43 @@ const CustomTripDetailsSchema = new Schema({
     },
     confirmedAccuracy: { type: Boolean, default: false },
     verifiedAt: { type: Date },
+  },
+  identityVerification: {
+    type: new Schema({
+      identityId: { type: Schema.Types.ObjectId, ref: "RiderIdentity" },
+      documentType: { type: String, enum: ["NATIONAL_ID", "PASSPORT"] },
+      status: {
+        type: String,
+        enum: ["PENDING_REVIEW", "APPROVED", "REJECTED"],
+        default: "PENDING_REVIEW",
+      },
+      rejectionReason: { type: String },
+      reviewedBy: { type: Schema.Types.ObjectId, ref: "User" },
+      reviewedAt: { type: Date },
+      files: {
+        front: {
+          fileId: { type: String },
+          originalName: { type: String },
+          mimeType: { type: String },
+          size: { type: Number },
+        },
+        back: {
+          fileId: { type: String },
+          originalName: { type: String },
+          mimeType: { type: String },
+          size: { type: Number },
+        },
+        photoPage: {
+          fileId: { type: String },
+          originalName: { type: String },
+          mimeType: { type: String },
+          size: { type: Number },
+        },
+      },
+      uploadedAt: { type: Date },
+    }, { _id: false }),
+    required: false,
+    default: undefined,
   },
 }, { _id: false });
 

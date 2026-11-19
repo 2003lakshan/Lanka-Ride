@@ -46,6 +46,7 @@ yarn-error.log*
 # private uploaded documents & storage
 /uploads/
 /public/uploads/
+/private_uploads/
 
 # vercel
 .vercel
