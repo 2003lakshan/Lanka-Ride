@@ -10,7 +10,7 @@ const nextConfig: NextConfig = {
     "localhost:3000",
     "127.0.0.1",
     "127.0.0.1:3000",
-    "lowest-collectors-clarity-cut.trycloudflare.com",
+    "gate-alpha-committed-occurring.trycloudflare.com",
   ],
   experimental: {
     serverActions: {

@@ -56,15 +56,7 @@ export default async function AdminOverview() {
     .sort({ createdAt: -1 })
     .lean();
 
-  const serializedCustomTrips = customTrips.map((b: any) => ({
-    ...b,
-    _id: b._id.toString(),
-    touristId: b.touristId ? { ...b.touristId, _id: b.touristId._id.toString() } : null,
-    driverId: b.driverId ? { ...b.driverId, _id: b.driverId._id.toString() } : null,
-    airportId: b.airportId ? { ...b.airportId, _id: b.airportId._id.toString() } : null,
-    vehicleTypeId: b.vehicleTypeId ? { ...b.vehicleTypeId, _id: b.vehicleTypeId._id.toString() } : null,
-    createdAt: b.createdAt ? b.createdAt.toISOString() : null,
-  }));
+  const serializedCustomTrips = JSON.parse(JSON.stringify(customTrips));
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
