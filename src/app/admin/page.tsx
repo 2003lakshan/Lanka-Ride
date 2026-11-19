@@ -4,8 +4,9 @@ import { redirect } from "next/navigation";
 import dbConnect from "@/lib/mongodb";
 import User from "@/models/User";
 import Booking from "@/models/Booking";
+import RiderIdentity from "@/models/RiderIdentity";
 import Link from "next/link";
-import { Users, AlertTriangle, Activity, CalendarCheck, ArrowRight, MapPin, CheckCircle, Clock } from "lucide-react";
+import { Users, AlertTriangle, Activity, CalendarCheck, ArrowRight, MapPin, CheckCircle, Clock, IdCard } from "lucide-react";
 import CustomTripRequestsSection from "@/components/admin/CustomTripRequestsSection";
 
 export const dynamic = "force-dynamic";
@@ -21,6 +22,7 @@ export default async function AdminOverview() {
   
   // Real data fetching
   const pendingDriversCount = await User.countDocuments({ role: "DRIVER", isApproved: false });
+  const pendingIdentitiesCount = await RiderIdentity.countDocuments({ status: "PENDING_REVIEW" });
   const unassignedBookingsCount = await Booking.countDocuments({ 
     driverId: { $exists: false },
     status: { $in: ["PENDING", "CONFIRMED"] }
@@ -135,6 +137,19 @@ export default async function AdminOverview() {
                     </div>
                   </div>
                   <Link href="/admin/approvals" className="text-xs font-bold text-amber-600 hover:text-amber-700">Review</Link>
+                </div>
+              )}
+
+              {pendingIdentitiesCount > 0 && (
+                <div className="flex items-center justify-between p-4 bg-blue-50/50 border border-blue-100 rounded-xl">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-blue-100 text-blue-600 rounded-lg"><IdCard size={16} /></div>
+                    <div>
+                      <p className="font-medium text-slate-900 text-sm">{pendingIdentitiesCount} rider ID(s) pending</p>
+                      <p className="text-xs text-slate-500">Awaiting identity review</p>
+                    </div>
+                  </div>
+                  <Link href="/admin/identity-reviews" className="text-xs font-bold text-blue-600 hover:text-blue-700">Review</Link>
                 </div>
               )}
 

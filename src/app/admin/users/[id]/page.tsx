@@ -3,8 +3,23 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { redirect } from "next/navigation";
 import dbConnect from "@/lib/mongodb";
 import User from "@/models/User";
+import RiderIdentity from "@/models/RiderIdentity";
 import Link from "next/link";
-import { ArrowLeft, UserCircle, Car, ShieldCheck, Mail, Phone, MapPin, Calendar } from "lucide-react";
+import { 
+  ArrowLeft, 
+  UserCircle, 
+  Car, 
+  ShieldCheck, 
+  Mail, 
+  Phone, 
+  MapPin, 
+  Calendar, 
+  IdCard, 
+  Clock, 
+  CheckCircle2, 
+  XCircle, 
+  ArrowRight 
+} from "lucide-react";
 import AdminDriverActions from "@/components/admin/AdminDriverActions";
 
 export const dynamic = "force-dynamic";
@@ -33,6 +48,10 @@ export default async function AdminUserDetailsPage({ params }: { params: Promise
       </div>
     );
   }
+
+  const riderIdentity = await RiderIdentity.findOne({ userId: id })
+    .populate("reviewedBy", "name email")
+    .lean();
 
   const isDriver = user.role === "DRIVER";
 
@@ -93,7 +112,7 @@ export default async function AdminUserDetailsPage({ params }: { params: Promise
             </div>
 
             {/* Driver Specific Info */}
-            {isDriver && (
+            {isDriver ? (
               <div className="space-y-6">
                 <h2 className="text-xl font-bold text-slate-800 border-b border-slate-100 pb-2">Driver Details</h2>
                 
@@ -202,6 +221,98 @@ export default async function AdminUserDetailsPage({ params }: { params: Promise
                   </>
                 )}
               </div>
+                )}
+              </div>
+            ) : (
+              /* Rider Identity Verification Section */
+              <div className="space-y-6">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                  <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                    <IdCard className="text-blue-600" size={22} />
+                    Identity Verification
+                  </h2>
+                  <div>
+                    {riderIdentity?.status === "APPROVED" ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                        <CheckCircle2 size={13} className="text-emerald-600" /> Approved
+                      </span>
+                    ) : riderIdentity?.status === "REJECTED" ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-red-50 text-red-800 border border-red-200">
+                        <XCircle size={13} className="text-red-600" /> Rejected
+                      </span>
+                    ) : riderIdentity?.status === "PENDING_REVIEW" ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                        <Clock size={13} className="text-amber-600 animate-pulse" /> Pending Review
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                        Not Submitted
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {riderIdentity ? (
+                  <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 space-y-4">
+                    <div className="grid grid-cols-2 gap-4 text-xs">
+                      <div>
+                        <span className="text-slate-400 block font-semibold">Document Type</span>
+                        <span className="text-sm font-bold text-slate-900">
+                          {riderIdentity.documentType === "NATIONAL_ID" ? "National ID Card" : "Passport"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block font-semibold">Document Version</span>
+                        <span className="text-sm font-bold text-slate-900">v{riderIdentity.version || 1}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block font-semibold">Last Updated</span>
+                        <span className="font-medium text-slate-800">
+                          {new Date(riderIdentity.updatedAt || riderIdentity.createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block font-semibold">Uploaded Files</span>
+                        <span className="font-medium text-slate-800">
+                          {riderIdentity.documentType === "NATIONAL_ID"
+                            ? `${[riderIdentity.files?.front, riderIdentity.files?.back].filter(Boolean).length}/2 files`
+                            : `${[riderIdentity.files?.photoPage].filter(Boolean).length}/1 file`}
+                        </span>
+                      </div>
+                    </div>
+
+                    {riderIdentity.status === "REJECTED" && riderIdentity.rejectionReason && (
+                      <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-800">
+                        <span className="font-bold block mb-0.5">Rejection Reason:</span>
+                        <span>{riderIdentity.rejectionReason}</span>
+                      </div>
+                    )}
+
+                    {riderIdentity.reviewedBy && (
+                      <div className="text-[11px] text-slate-500 pt-2 border-t border-slate-200">
+                        Reviewed by <strong className="text-slate-700">{(riderIdentity.reviewedBy as any).name || "Admin"}</strong> on {riderIdentity.reviewedAt ? new Date(riderIdentity.reviewedAt).toLocaleDateString() : ""}
+                      </div>
+                    )}
+
+                    <div className="pt-2">
+                      <Link
+                        href={`/admin/identity-reviews/${riderIdentity._id.toString()}`}
+                        className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors"
+                      >
+                        <ShieldCheck size={15} />
+                        <span>Review Identity Documents</span>
+                        <ArrowRight size={14} />
+                      </Link>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-slate-50 p-8 rounded-2xl border border-slate-200 text-center text-slate-500">
+                    <IdCard size={32} className="mx-auto text-slate-300 mb-2" />
+                    <p className="font-bold text-slate-800 text-sm">No Documents Uploaded</p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      This rider has not submitted an identity document yet.
+                    </p>
+                  </div>
                 )}
               </div>
             )}

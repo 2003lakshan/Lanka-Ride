@@ -17,7 +17,8 @@ import {
   PanelLeftClose, 
   PanelLeftOpen,
   ChevronRight,
-  Shield
+  Shield,
+  IdCard
 } from "lucide-react";
 
 export const adminNavItems = [
@@ -26,6 +27,7 @@ export const adminNavItems = [
   { name: "PickMe", href: "/admin/pickme", icon: Navigation },
   { name: "Live Tracking", href: "/admin/active-trips", icon: MapPin },
   { name: "Driver Approvals", href: "/admin/approvals", icon: ShieldCheck },
+  { name: "Identity Reviews", href: "/admin/identity-reviews", icon: IdCard },
   { name: "Drivers", href: "/admin/users?role=DRIVER", icon: Car },
   { name: "Riders", href: "/admin/users?role=TOURIST", icon: Users },
   { name: "Tour Packages", href: "/admin/packages", icon: Package },

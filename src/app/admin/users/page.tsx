@@ -97,6 +97,19 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
                         </span>
                       </div>
                     )}
+                    {user.role === "TOURIST" && user.identityStatus && user.identityStatus !== "NOT_SUBMITTED" && (
+                      <div className="mb-1">
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded uppercase ${
+                          user.identityStatus === "APPROVED"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : user.identityStatus === "REJECTED"
+                            ? "bg-red-100 text-red-800"
+                            : "bg-amber-100 text-amber-800"
+                        }`}>
+                          ID: {user.identityStatus === "PENDING_REVIEW" ? "Pending Review" : user.identityStatus}
+                        </span>
+                      </div>
+                    )}
                     <div className="text-xs text-slate-500">Joined: {new Date(user.createdAt).toLocaleDateString()}</div>
                   </td>
                   <td className="px-6 py-4 text-right">
