@@ -137,11 +137,24 @@ export async function POST(req: Request) {
 
     let booking;
     const targetStatus = isDraft ? "DRAFT" : "PENDING_APPROVAL";
+    let isResubmission = false;
+    let nextRevision = 1;
 
     if (bookingId) {
       booking = await Booking.findOne({ _id: bookingId, touristId: user._id });
       if (!booking) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
       
+      const previousRev = Number(booking.customTripDetails?.revision) || 1;
+      nextRevision = previousRev + 1;
+      isResubmission = !isDraft;
+
+      // Invalidate any prior approval on resubmission/edit
+      if (!isDraft) {
+        booking.approvedAt = undefined;
+        booking.approvedBy = undefined;
+        booking.driverId = undefined;
+        booking.offeredDriverIds = [];
+      }
       booking.status = targetStatus;
     } else {
       const bookingReference = "CT-" + Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -151,6 +164,7 @@ export async function POST(req: Request) {
         isPackageBooking: false,
         status: targetStatus,
       });
+      nextRevision = 1;
     }
 
     // Update common fields
@@ -249,6 +263,22 @@ export async function POST(req: Request) {
       dropoffFlightNumber: logistics.dropoffFlight,
       dropoffLocation: logistics.dropoffLocation,
       dropoffTime: logistics.dropoffTime,
+      revision: nextRevision,
+      approvedRevision: undefined,
+      changeRequest: undefined,
+      reviewHistory: isResubmission
+        ? [
+            ...(booking.customTripDetails?.reviewHistory || []),
+            {
+              action: "RESUBMIT",
+              actorId: user._id,
+              actorRole: "TOURIST",
+              actorName: user.name,
+              timestamp: new Date(),
+              revision: nextRevision,
+            },
+          ]
+        : booking.customTripDetails?.reviewHistory || [],
       itinerary: itinerary.map((day: any) => ({
         dayNumber: day.dayNumber,
         date: new Date(day.date),
@@ -282,17 +312,18 @@ export async function POST(req: Request) {
       const isUpdate = Boolean(bookingId);
 
       if (isUpdate) {
-        import("@/lib/realtime").then(({ broadcastCustomTripUpdated }) => {
+        import("@/lib/realtime").then(({ broadcastCustomTripUpdated, broadcastRideOfferWithdrawn }) => {
+          broadcastRideOfferWithdrawn(booking._id.toString());
           broadcastCustomTripUpdated(booking);
         }).catch(console.error);
 
         import("@/lib/notifications").then(async ({ notifyAdmins }) => {
           await notifyAdmins({
             type: "TRIP_UPDATED",
-            title: "Trip Request Updated",
-            message: `Rider updated custom trip ${booking.bookingReference}.`,
+            title: isResubmission ? "Custom Trip Resubmitted" : "Trip Request Updated",
+            message: `Rider ${user.name} resubmitted custom trip ${booking.bookingReference} (Revision ${nextRevision}) for review.`,
             link: `/admin/custom-trips/${booking._id.toString()}`,
-            deduplicationKey: `custom_update_admin_${booking._id.toString()}_${Date.now()}`
+            deduplicationKey: `custom_update_admin_${booking._id.toString()}_rev${nextRevision}_${Date.now()}`
           });
         }).catch(console.error);
       } else {

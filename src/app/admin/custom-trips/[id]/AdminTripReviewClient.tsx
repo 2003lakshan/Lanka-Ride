@@ -2,21 +2,54 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle, Send, ArrowLeft, FileText, ExternalLink, ShieldCheck, AlertCircle, XCircle, CheckCircle2, Loader2 } from "lucide-react";
+import { 
+  CheckCircle, 
+  Send, 
+  ArrowLeft, 
+  FileText, 
+  ExternalLink, 
+  ShieldCheck, 
+  AlertCircle, 
+  XCircle, 
+  CheckCircle2, 
+  Loader2,
+  Calendar,
+  Clock,
+  MapPin,
+  Users,
+  Luggage,
+  Car,
+  History,
+  MessageSquareQuote
+} from "lucide-react";
 import Link from "next/link";
 import { formatSriLankanDate } from "@/lib/dateTime";
 
 export default function AdminTripReviewClient({ booking }: { booking: any }) {
   const router = useRouter();
-  const [notes, setNotes] = useState<Record<string, string>>(booking.adminNotes || {});
+  const currentRevision = Number(booking.customTripDetails?.revision) || 1;
+  const [tripStatus, setTripStatus] = useState<string>(booking.status || "PENDING_APPROVAL");
+  const [reviewHistory, setReviewHistory] = useState<any[]>(
+    booking.customTripDetails?.reviewHistory || []
+  );
+
   const [loading, setLoading] = useState(false);
   const proposedBudget = booking.customTripDetails?.budget;
   const proposedCurrency = booking.customTripDetails?.budgetCurrency || "USD";
-  const hasValidTransportBudget = proposedBudget && Number(proposedBudget) > 0 && booking.customTripDetails?.budgetCovers === "Transport only";
+  const hasValidTransportBudget =
+    proposedBudget &&
+    Number(proposedBudget) > 0 &&
+    booking.customTripDetails?.budgetCovers === "Transport only";
 
-  const [priceMode, setPriceMode] = useState<"ACCEPT_BUDGET" | "CUSTOM_PRICE">(hasValidTransportBudget ? "ACCEPT_BUDGET" : "CUSTOM_PRICE");
-  const [confirmedAmount, setConfirmedAmount] = useState<string>("");
-  const [confirmedCurrency, setConfirmedCurrency] = useState<string>("USD");
+  const [priceMode, setPriceMode] = useState<"ACCEPT_BUDGET" | "CUSTOM_PRICE">(
+    hasValidTransportBudget ? "ACCEPT_BUDGET" : "CUSTOM_PRICE"
+  );
+  const [confirmedAmount, setConfirmedAmount] = useState<string>(
+    booking.customTripDetails?.confirmedAmount?.toString() || ""
+  );
+  const [confirmedCurrency, setConfirmedCurrency] = useState<string>(
+    booking.customTripDetails?.confirmedCurrency || "USD"
+  );
 
   const effectiveAmount = priceMode === "ACCEPT_BUDGET" ? proposedBudget : confirmedAmount;
   const effectiveCurrency = priceMode === "ACCEPT_BUDGET" ? proposedCurrency : confirmedCurrency;
@@ -36,6 +69,14 @@ export default function AdminTripReviewClient({ booking }: { booking: any }) {
   const [rejectInput, setRejectInput] = useState<string>("");
   const [identityReviewLoading, setIdentityReviewLoading] = useState<boolean>(false);
   const [identityReviewMsg, setIdentityReviewMsg] = useState<string>("");
+
+  // Request Changes Modal state
+  const [showChangesModal, setShowChangesModal] = useState<boolean>(false);
+  const [changesFeedback, setChangesFeedback] = useState<string>("");
+  const [selectedFields, setSelectedFields] = useState<string[]>([]);
+  const [selectedDays, setSelectedDays] = useState<number[]>([]);
+  const [submittingChanges, setSubmittingChanges] = useState<boolean>(false);
+  const [changesError, setChangesError] = useState<string>("");
 
   const handleReviewIdentity = async (action: "APPROVE" | "REJECT", reason?: string) => {
     const identityId = idVerification?.identityId;
@@ -88,40 +129,12 @@ export default function AdminTripReviewClient({ booking }: { booking: any }) {
     }
   };
 
-  const handleNoteChange = (key: string, value: string) => {
-    setNotes(prev => ({ ...prev, [key]: value }));
-  };
-
-  const submitReview = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/admin/custom-trips", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          bookingId: booking._id,
-          action: "SEND_REVIEW",
-          notes
-        })
-      });
-      if (res.ok) {
-        router.push("/admin");
-      } else {
-        alert("Failed to send review");
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const approveTrip = async () => {
     if (!effectiveAmount || isNaN(Number(effectiveAmount)) || Number(effectiveAmount) <= 0) {
       alert("Please enter a valid confirmed amount.");
       return;
     }
-    
+
     setLoading(true);
     try {
       const res = await fetch("/api/admin/custom-trips", {
@@ -132,118 +145,267 @@ export default function AdminTripReviewClient({ booking }: { booking: any }) {
           action: "APPROVE",
           confirmedAmount: Number(effectiveAmount),
           confirmedCurrency: effectiveCurrency,
-          useRiderBudget: priceMode === "ACCEPT_BUDGET"
-        })
+          useRiderBudget: priceMode === "ACCEPT_BUDGET",
+          expectedRevision: currentRevision,
+        }),
       });
+      const data = await res.json();
       if (res.ok) {
-        router.push("/admin");
+        setTripStatus(data.status || "PENDING");
+        alert("Trip approved and published to eligible drivers successfully!");
+        router.push("/admin/custom-trips");
+      } else if (res.status === 409) {
+        alert(
+          data.error ||
+            "The rider updated or resubmitted their trip request while you were reviewing. Refreshing to inspect the latest revision."
+        );
+        router.refresh();
       } else {
-        const data = await res.json();
-        alert(data.error || "Failed to approve");
+        alert(data.error || "Failed to approve trip.");
       }
     } catch (err) {
       console.error(err);
+      alert("Network error occurred while approving trip.");
     } finally {
       setLoading(false);
     }
   };
 
-  const rejectTrip = async () => {
-    const reason = prompt("Enter reason for rejection:");
-    if (!reason) return;
+  const handleToggleField = (field: string) => {
+    setSelectedFields((prev) =>
+      prev.includes(field) ? prev.filter((f) => f !== field) : [...prev, field]
+    );
+  };
 
-    setLoading(true);
+  const handleToggleDay = (dayNum: number) => {
+    setSelectedDays((prev) =>
+      prev.includes(dayNum) ? prev.filter((d) => d !== dayNum) : [...prev, dayNum]
+    );
+  };
+
+  const submitRequestChanges = async () => {
+    if (!changesFeedback.trim()) {
+      setChangesError("Please provide a clear explanation of the changes needed.");
+      return;
+    }
+
+    setSubmittingChanges(true);
+    setChangesError("");
+
     try {
       const res = await fetch("/api/admin/custom-trips", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           bookingId: booking._id,
-          action: "REJECT",
-          notes: { rejectionReason: reason }
-        })
+          action: "REQUEST_CHANGES",
+          feedback: changesFeedback.trim(),
+          affectedFields: selectedFields,
+          affectedDays: selectedDays,
+          expectedRevision: currentRevision,
+        }),
       });
+
+      const data = await res.json();
       if (res.ok) {
-        router.push("/admin");
+        setTripStatus("CHANGES_REQUESTED");
+        setShowChangesModal(false);
+        alert("Changes requested successfully! The rider has been notified.");
+        router.push("/admin/custom-trips");
+      } else if (res.status === 409) {
+        alert(
+          data.error ||
+            "The rider updated or resubmitted their trip request while you were reviewing. Refreshing to inspect the latest revision."
+        );
+        router.refresh();
       } else {
-        alert("Failed to reject");
+        setChangesError(data.error || "Failed to request changes.");
       }
-    } catch (err) {
-      console.error(err);
+    } catch {
+      setChangesError("Network error occurred while requesting changes.");
     } finally {
-      setLoading(false);
+      setSubmittingChanges(false);
     }
   };
 
-  const NoteField = ({ sectionKey, label }: { sectionKey: string, label: string }) => (
-    <div className="mt-4 bg-amber-50 p-4 rounded-lg border border-amber-200">
-      <label className="block text-xs font-bold text-amber-900 mb-2">Admin Note for {label}</label>
-      <textarea
-        value={notes[sectionKey] || ""}
-        onChange={(e) => handleNoteChange(sectionKey, e.target.value)}
-        className="w-full p-2 border border-amber-300 rounded text-sm bg-white focus:ring-amber-500 focus:border-amber-500 outline-none transition-all"
-        placeholder={`Add a note or change request for ${label}...`}
-        rows={2}
-      />
-    </div>
-  );
+  const itineraryDays = booking.customTripDetails?.itinerary || [];
 
   return (
-    <div className="max-w-4xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+    <div className="max-w-4xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
+      {/* Top Navigation & Status Bar */}
       <div className="mb-6">
-        <Link href="/admin" className="text-blue-600 hover:underline flex items-center gap-1 text-sm font-bold mb-4">
-          <ArrowLeft size={16} /> Back to Dashboard
+        <Link
+          href="/admin/custom-trips"
+          className="text-blue-600 hover:underline inline-flex items-center gap-1.5 text-xs font-bold mb-3"
+        >
+          <ArrowLeft size={16} /> Back to Custom Trips Management
         </Link>
-        <h1 className="text-3xl font-bold text-slate-900">Review Trip Plan</h1>
-        <p className="text-slate-600">Review the custom trip details and add notes if changes are needed.</p>
+
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
+          <div>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900">
+                {booking.bookingReference}
+              </h1>
+              <span className="text-xs font-extrabold bg-blue-100 text-blue-800 px-2.5 py-1 rounded-md">
+                Revision {currentRevision}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-1">
+              Submitted on {formatSriLankanDate(booking.createdAt)}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {tripStatus === "PENDING_APPROVAL" ? (
+              <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-extrabold bg-amber-500 text-white shadow-xs">
+                <Clock size={13} />
+                Trip: Awaiting Admin Review
+              </span>
+            ) : tripStatus === "CHANGES_REQUESTED" ? (
+              <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-extrabold bg-orange-600 text-white shadow-xs">
+                <AlertCircle size={13} />
+                Trip: Changes Requested
+              </span>
+            ) : tripStatus === "DRIVER_ASSIGNED" ? (
+              <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-extrabold bg-blue-600 text-white shadow-xs">
+                <Car size={13} />
+                Trip: Driver Assigned
+              </span>
+            ) : tripStatus === "PENDING" && booking.approvedAt ? (
+              <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-extrabold bg-emerald-600 text-white shadow-xs">
+                <CheckCircle2 size={13} />
+                Trip: Approved &bull; Available to Drivers
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold bg-slate-200 text-slate-800">
+                Trip: {tripStatus}
+              </span>
+            )}
+          </div>
+        </div>
       </div>
 
+      {/* Active Change Request Notice */}
+      {tripStatus === "CHANGES_REQUESTED" && booking.customTripDetails?.changeRequest && (
+        <div className="mb-6 p-4 bg-orange-50 border border-orange-200 rounded-2xl">
+          <div className="flex items-center gap-2 text-orange-900 font-bold text-sm">
+            <AlertCircle size={18} className="text-orange-600" />
+            <span>Changes Currently Requested from Rider</span>
+          </div>
+          <p className="text-xs font-semibold text-orange-950 bg-white p-3 rounded-xl border border-orange-200 mt-2">
+            &ldquo;{booking.customTripDetails.changeRequest.feedback}&rdquo;
+          </p>
+          <div className="flex flex-wrap gap-2 mt-2">
+            {booking.customTripDetails.changeRequest.affectedFields?.map((f: string) => (
+              <span key={f} className="text-[10px] font-bold px-2 py-0.5 bg-orange-200 text-orange-900 rounded-md">
+                Area: {f}
+              </span>
+            ))}
+            {booking.customTripDetails.changeRequest.affectedDays?.map((d: number) => (
+              <span key={d} className="text-[10px] font-bold px-2 py-0.5 bg-amber-200 text-amber-950 rounded-md">
+                Day {d}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="space-y-8">
-        {/* Booking Contact & Passenger Details */}
-        <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-          <h2 className="text-xl font-bold text-slate-800 mb-4 border-b pb-2 flex items-center justify-between">
-            <span>Booking Contact & Passenger</span>
+        {/* =========================================================
+            SECTION 1: Booking Contact & Passenger Details
+        ========================================================= */}
+        <section className="bg-white p-6 rounded-2xl shadow-xs border border-slate-200">
+          <h2 className="text-lg font-bold text-slate-900 mb-4 border-b pb-2 flex items-center justify-between">
+            <span>Booking Contact &amp; Passenger</span>
             {booking.customTripDetails?.bookingContact?.isBookingForSomeoneElse && (
-              <span className="text-xs font-extrabold uppercase px-2.5 py-1 bg-amber-50 text-amber-800 rounded-full border border-amber-200">
+              <span className="text-[10px] font-extrabold uppercase px-2.5 py-1 bg-amber-50 text-amber-800 rounded-full border border-amber-200">
                 Booked For Someone Else
               </span>
             )}
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm mb-4">
-            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Booking Contact (Account Holder)</p>
-              <div><span className="text-slate-500">Name:</span> <span className="font-bold text-slate-900">{booking.customTripDetails?.bookingContact?.fullName || booking.passengerDetails?.fullName || "N/A"}</span></div>
-              <div><span className="text-slate-500">Country:</span> <span className="font-medium text-slate-900">{booking.customTripDetails?.bookingContact?.country || booking.passengerDetails?.country || "N/A"}</span></div>
-              <div><span className="text-slate-500">Verified Email:</span> <span className="font-medium text-slate-900">{booking.customTripDetails?.bookingContact?.email || booking.passengerDetails?.email || "N/A"}</span></div>
-              <div><span className="text-slate-500">Contact Phone:</span> <span className="font-medium text-slate-900">{booking.customTripDetails?.bookingContact?.phone || booking.passengerDetails?.whatsappNumber || "N/A"}</span></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-1.5">
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                Booking Contact (Account Holder)
+              </p>
+              <div>
+                <span className="text-slate-500 text-xs">Name:</span>{" "}
+                <span className="font-bold text-slate-900">
+                  {booking.customTripDetails?.bookingContact?.fullName ||
+                    booking.passengerDetails?.fullName ||
+                    "N/A"}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-500 text-xs">Country:</span>{" "}
+                <span className="font-medium text-slate-900">
+                  {booking.customTripDetails?.bookingContact?.country ||
+                    booking.passengerDetails?.country ||
+                    "N/A"}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-500 text-xs">Verified Email:</span>{" "}
+                <span className="font-medium text-slate-900">
+                  {booking.customTripDetails?.bookingContact?.email ||
+                    booking.passengerDetails?.email ||
+                    "N/A"}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-500 text-xs">Contact Phone:</span>{" "}
+                <span className="font-medium text-slate-900">
+                  {booking.customTripDetails?.bookingContact?.phone ||
+                    booking.passengerDetails?.whatsappNumber ||
+                    "N/A"}
+                </span>
+              </div>
             </div>
 
-            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Travelling Passenger</p>
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-1.5">
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                Travelling Passenger
+              </p>
               {booking.customTripDetails?.bookingContact?.isBookingForSomeoneElse ? (
                 <>
-                  <div><span className="text-slate-500">Passenger Name:</span> <span className="font-bold text-slate-900">{booking.customTripDetails.bookingContact.passenger?.fullName || "N/A"}</span></div>
-                  <div><span className="text-slate-500">Passenger Mobile:</span> <span className="font-bold text-slate-900">{booking.customTripDetails.bookingContact.passenger?.phone || "N/A"}</span></div>
-                  <p className="text-xs text-slate-500 mt-2">Driver should coordinate pickups with this passenger.</p>
+                  <div>
+                    <span className="text-slate-500 text-xs">Passenger Name:</span>{" "}
+                    <span className="font-bold text-slate-900">
+                      {booking.customTripDetails.bookingContact.passenger?.fullName || "N/A"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 text-xs">Passenger Mobile:</span>{" "}
+                    <span className="font-bold text-slate-900">
+                      {booking.customTripDetails.bookingContact.passenger?.phone || "N/A"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-2">
+                    Driver will coordinate on-the-ground pickups directly with this passenger.
+                  </p>
                 </>
               ) : (
                 <div className="py-2">
-                  <p className="font-medium text-slate-800">Primary contact is also the travelling passenger.</p>
+                  <p className="font-medium text-slate-800 text-xs">
+                    Primary contact is also the travelling passenger.
+                  </p>
                 </div>
               )}
             </div>
           </div>
-          <NoteField sectionKey="contact" label="Contact & Passenger" />
         </section>
 
-        {/* Identity Document Verification Review */}
-        <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-          <div className="flex items-center justify-between border-b pb-3 mb-4">
-            <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-              <ShieldCheck className="text-blue-600" size={22} />
-              Identity Document Verification
+        {/* =========================================================
+            SECTION 2: Identity Document Verification Review
+        ========================================================= */}
+        <section className="bg-white p-6 rounded-2xl shadow-xs border border-slate-200">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b pb-3 mb-4">
+            <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <ShieldCheck className="text-blue-600" size={20} />
+              <span>Identity Document Verification</span>
             </h2>
-            <div>
+            <div className="flex items-center gap-2">
               {identityStatus === "APPROVED" ? (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
                   <CheckCircle2 size={14} /> Approved
@@ -261,6 +423,17 @@ export default function AdminTripReviewClient({ booking }: { booking: any }) {
                   Not Submitted
                 </span>
               )}
+
+              {idVerification?.identityId && (
+                <Link
+                  href={`/admin/identity-reviews/${idVerification.identityId}`}
+                  target="_blank"
+                  className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200"
+                >
+                  <ExternalLink size={12} />
+                  <span>Open in ID Dashboard</span>
+                </Link>
+              )}
             </div>
           </div>
 
@@ -275,7 +448,7 @@ export default function AdminTripReviewClient({ booking }: { booking: any }) {
             <div className="space-y-4">
               <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-100">
                 <div>
-                  <span className="text-xs font-bold uppercase text-slate-500">Document Type</span>
+                  <span className="text-[10px] font-bold uppercase text-slate-500">Document Type</span>
                   <div className="text-sm font-extrabold text-slate-900">
                     {idVerification.documentType === "NATIONAL_ID" ? "National ID Card" : "Passport"}
                   </div>
@@ -350,7 +523,7 @@ export default function AdminTripReviewClient({ booking }: { booking: any }) {
                 ) : (
                   <div className="sm:col-span-2 p-4 border rounded-xl bg-slate-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                     <div>
-                      <span className="text-xs font-bold text-slate-500 uppercase">Passport Photo & Details Page</span>
+                      <span className="text-xs font-bold text-slate-500 uppercase">Passport Photo &amp; Details Page</span>
                       <p className="text-sm font-medium text-slate-900 mt-1">
                         {idVerification.files?.photoPage?.originalName || "No file uploaded"}
                       </p>
@@ -375,7 +548,7 @@ export default function AdminTripReviewClient({ booking }: { booking: any }) {
                 )}
               </div>
 
-              {/* Admin Review Action Buttons */}
+              {/* Admin Identity Review Action Buttons */}
               <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center gap-3">
                 <button
                   type="button"
@@ -438,112 +611,257 @@ export default function AdminTripReviewClient({ booking }: { booking: any }) {
           )}
         </section>
 
-        {/* Basics */}
-        <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-          <h2 className="text-xl font-bold text-slate-800 mb-4 border-b pb-2">Trip Basics</h2>
-          <div className="grid grid-cols-2 gap-4 text-sm mb-4">
-            <div suppressHydrationWarning><span className="text-slate-500">Start Date:</span> <span className="font-medium text-slate-900">{booking.customTripDetails?.startDate ? formatSriLankanDate(booking.customTripDetails.startDate) : 'N/A'}</span></div>
-            <div suppressHydrationWarning><span className="text-slate-500">End Date:</span> <span className="font-medium text-slate-900">{booking.customTripDetails?.endDate ? formatSriLankanDate(booking.customTripDetails.endDate) : 'N/A'}</span></div>
+        {/* =========================================================
+            SECTION 3: Trip Basics, Dates, Passengers, Vehicle
+        ========================================================= */}
+        <section className="bg-white p-6 rounded-2xl shadow-xs border border-slate-200">
+          <h2 className="text-lg font-bold text-slate-900 mb-4 border-b pb-2 flex items-center gap-2">
+            <Calendar size={18} className="text-blue-600" />
+            <span>Trip Basics &amp; Vehicle Preference</span>
+          </h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs mb-4">
             <div>
-              <span className="text-slate-500">Budget:</span> 
-              <span className="font-medium text-slate-900 ml-1">
-                {booking.customTripDetails?.budget ? `${booking.customTripDetails.budgetCurrency || 'USD'} ${booking.customTripDetails.budget}` : 'Flexible'}
+              <span className="text-slate-500 font-semibold block">Start Date:</span>
+              <span className="font-bold text-slate-900 text-sm" suppressHydrationWarning>
+                {booking.customTripDetails?.startDate
+                  ? formatSriLankanDate(booking.customTripDetails.startDate)
+                  : booking.arrivalDate
+                  ? formatSriLankanDate(booking.arrivalDate)
+                  : "N/A"}
               </span>
-              {booking.customTripDetails?.budget && (
-                <div className="text-xs text-slate-500 mt-1">
-                  Covers: {booking.customTripDetails.budgetCovers} | {booking.customTripDetails.budgetFlexibility}
-                  {booking.customTripDetails.budgetNotes && <p className="italic text-amber-700 mt-1 bg-amber-50 p-1 rounded">"{booking.customTripDetails.budgetNotes}"</p>}
-                </div>
-              )}
             </div>
-            <div><span className="text-slate-500">Vehicle Type:</span> <span className="font-medium text-slate-900">{booking.vehicleTypeId?.name || "Not specified"}</span></div>
+            <div>
+              <span className="text-slate-500 font-semibold block">End Date:</span>
+              <span className="font-bold text-slate-900 text-sm" suppressHydrationWarning>
+                {booking.customTripDetails?.endDate
+                  ? formatSriLankanDate(booking.customTripDetails.endDate)
+                  : "N/A"}
+              </span>
+            </div>
+            <div>
+              <span className="text-slate-500 font-semibold block">Vehicle Selected:</span>
+              <span className="font-bold text-slate-900 text-sm">
+                {booking.vehicleTypeId?.name || "Standard Vehicle"}
+              </span>
+            </div>
+            <div>
+              <span className="text-slate-500 font-semibold block">Adult Passengers:</span>
+              <span className="font-bold text-slate-900 text-sm">
+                {booking.passengerDetails?.adults ?? 2} Adults
+              </span>
+            </div>
+            <div>
+              <span className="text-slate-500 font-semibold block">Children:</span>
+              <span className="font-bold text-slate-900 text-sm">
+                {booking.passengerDetails?.children ?? 0} Children
+              </span>
+            </div>
+            <div>
+              <span className="text-slate-500 font-semibold block">Luggage Bags:</span>
+              <span className="font-bold text-slate-900 text-sm">
+                {booking.passengerDetails?.luggage ?? 2} Bags
+              </span>
+            </div>
           </div>
-          <NoteField sectionKey="basics" label="Trip Basics" />
-        </section>
 
-        {/* Logistics */}
-        <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-          <h2 className="text-xl font-bold text-slate-800 mb-4 border-b pb-2">Arrival & Departure Logistics</h2>
-          <div className="grid grid-cols-2 gap-4 text-sm mb-4">
-            <div><span className="text-slate-500">Pickup Address:</span> <span className="font-medium text-slate-900">{booking.pickupAddress || 'N/A'}</span></div>
-            <div><span className="text-slate-500">Pickup Time:</span> <span className="font-medium text-slate-900">{booking.arrivalTime || 'N/A'}</span></div>
-            <div><span className="text-slate-500">Dropoff Address:</span> <span className="font-medium text-slate-900">{booking.destinationAddress || 'N/A'}</span></div>
-            <div><span className="text-slate-500">Dropoff Time:</span> <span className="font-medium text-slate-900">{booking.customTripDetails?.dropoffTime || 'N/A'}</span></div>
-          </div>
-          <NoteField sectionKey="logistics" label="Logistics" />
-        </section>
-
-        {/* Itinerary */}
-        <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-          <h2 className="text-xl font-bold text-slate-800 mb-4 border-b pb-2">Itinerary</h2>
-          <div className="space-y-6">
-            {booking.customTripDetails?.itinerary?.map((day: any, index: number) => (
-              <div key={index} className="border border-slate-100 rounded-lg p-4 bg-slate-50">
-                <h3 className="font-bold text-slate-800 mb-2" suppressHydrationWarning>Day {day.dayNumber} - {formatSriLankanDate(day.date)}</h3>
-                <div className="text-sm space-y-2 mb-4">
-                  <p><span className="text-slate-500">Start:</span> {day.startingLocation?.address || 'N/A'}</p>
-                  <p><span className="text-slate-500">Places to Visit:</span> {day.placesToVisit?.length > 0 ? day.placesToVisit.map((p: any) => p.name).join(", ") : 'None specified'}</p>
-                  <p><span className="text-slate-500">Overnight:</span> {day.overnightLocation?.hotel || day.overnightLocation?.city || 'N/A'}</p>
-                  {(day.distanceKm > 0 || day.drivingTimeMins > 0) && (
-                    <p>
-                      <span className="text-slate-500">Driving:</span> {day.distanceKm?.toFixed(1) || 0} km • {Math.round(day.drivingTimeMins || 0)} mins
-                    </p>
-                  )}
-                  {day.notes && (
-                    <p className="bg-amber-50 p-2 rounded border border-amber-100 text-amber-800"><span className="font-bold">Notes:</span> {day.notes}</p>
-                  )}
-                </div>
-                <NoteField sectionKey={`day_${day.dayNumber}`} label={`Day ${day.dayNumber}`} />
-              </div>
-            ))}
-            {(!booking.customTripDetails?.itinerary || booking.customTripDetails.itinerary.length === 0) && (
-              <div className="text-slate-500 text-sm">No itinerary days specified.</div>
+          {/* Budget Info */}
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mt-3 text-xs space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-slate-700">Rider's Proposed Budget:</span>
+              <span className="font-extrabold text-slate-900 text-sm">
+                {booking.customTripDetails?.budget
+                  ? `${booking.customTripDetails.budgetCurrency || "USD"} ${booking.customTripDetails.budget}`
+                  : "Flexible"}
+              </span>
+            </div>
+            {booking.customTripDetails?.budget && (
+              <p className="text-slate-500">
+                Covers: {booking.customTripDetails.budgetCovers || "Transport only"} &bull; Flexibility: {booking.customTripDetails.budgetFlexibility || "Negotiable"}
+              </p>
+            )}
+            {booking.customTripDetails?.budgetNotes && (
+              <p className="italic text-amber-800 bg-amber-50 p-2 rounded border border-amber-200/60 mt-2">
+                <strong>Rider Note:</strong> &ldquo;{booking.customTripDetails.budgetNotes}&rdquo;
+              </p>
             )}
           </div>
         </section>
 
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-          <h2 className="text-xl font-bold text-slate-800 mb-4 border-b pb-2">Confirm Trip Price</h2>
-          
-          <div className="space-y-4 mb-4">
-            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-              <p className="text-sm font-semibold text-slate-700 mb-1">Rider's Proposed Budget:</p>
-              {booking.customTripDetails?.budget ? (
-                <div className="flex items-center gap-2">
-                  <span className="text-xl font-bold text-slate-900">
-                    {booking.customTripDetails.budgetCurrency || "USD"} {booking.customTripDetails.budget}
-                  </span>
-                  <span className="text-xs px-2 py-1 bg-white border border-slate-200 rounded-full text-slate-500">
-                    {booking.customTripDetails.budgetCovers || "Transport only"}
-                  </span>
-                </div>
-              ) : (
-                <span className="text-slate-500 italic">No budget proposed</span>
-              )}
+        {/* =========================================================
+            SECTION 4: Logistics & Routes
+        ========================================================= */}
+        <section className="bg-white p-6 rounded-2xl shadow-xs border border-slate-200">
+          <h2 className="text-lg font-bold text-slate-900 mb-4 border-b pb-2 flex items-center gap-2">
+            <MapPin size={18} className="text-blue-600" />
+            <span>Pickup &amp; Drop-off Logistics</span>
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-100">
+              <span className="font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                Pickup Location
+              </span>
+              <p className="font-bold text-slate-900 text-sm mb-1">{booking.pickupAddress || "N/A"}</p>
+              <p className="text-slate-600">Time: {booking.arrivalTime || "N/A"}</p>
+              {booking.flightNumber && <p className="text-slate-600">Flight: {booking.flightNumber}</p>}
             </div>
 
+            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-100">
+              <span className="font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                Drop-off Location
+              </span>
+              <p className="font-bold text-slate-900 text-sm mb-1">{booking.destinationAddress || "N/A"}</p>
+              <p className="text-slate-600">Time: {booking.customTripDetails?.dropoffTime || "N/A"}</p>
+              {booking.customTripDetails?.dropoffFlightNumber && (
+                <p className="text-slate-600">Flight: {booking.customTripDetails.dropoffFlightNumber}</p>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* =========================================================
+            SECTION 5: Daily Itinerary
+        ========================================================= */}
+        <section className="bg-white p-6 rounded-2xl shadow-xs border border-slate-200">
+          <h2 className="text-lg font-bold text-slate-900 mb-4 border-b pb-2 flex items-center justify-between">
+            <span>Daily Itinerary ({itineraryDays.length} Days)</span>
+            {booking.distanceKm > 0 && (
+              <span className="text-xs font-bold text-slate-500">
+                Total Route: {booking.distanceKm.toFixed(1)} km &bull; {Math.round(booking.durationMins || 0)} mins
+              </span>
+            )}
+          </h2>
+          <div className="space-y-4">
+            {itineraryDays.map((day: any, index: number) => (
+              <div key={index} className="border border-slate-200 rounded-xl p-4 bg-slate-50 text-xs">
+                <div className="flex items-center justify-between border-b pb-2 mb-2">
+                  <h3 className="font-bold text-slate-900 text-sm" suppressHydrationWarning>
+                    Day {day.dayNumber} - {formatSriLankanDate(day.date)}
+                  </h3>
+                  {(day.distanceKm > 0 || day.drivingTimeMins > 0) && (
+                    <span className="text-[11px] font-bold text-slate-500">
+                      {day.distanceKm?.toFixed(1) || 0} km &bull; {Math.round(day.drivingTimeMins || 0)} mins
+                    </span>
+                  )}
+                </div>
+
+                <div className="space-y-1 text-slate-700">
+                  <p>
+                    <strong className="text-slate-900">Start:</strong> {day.startingLocation?.address || "N/A"}
+                  </p>
+                  <p>
+                    <strong className="text-slate-900">Places to Visit:</strong>{" "}
+                    {day.placesToVisit?.length > 0
+                      ? day.placesToVisit.map((p: any) => p.name).join(", ")
+                      : "None specified"}
+                  </p>
+                  <p>
+                    <strong className="text-slate-900">Overnight:</strong>{" "}
+                    {day.overnightLocation?.hotel || day.overnightLocation?.city || "N/A"}
+                  </p>
+                  {day.notes && (
+                    <p className="bg-amber-50 p-2 rounded border border-amber-200/60 text-amber-900 mt-2">
+                      <strong>Day Notes:</strong> {day.notes}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ))}
+            {itineraryDays.length === 0 && (
+              <p className="text-slate-400 text-xs italic">No itinerary days specified.</p>
+            )}
+          </div>
+        </section>
+
+        {/* =========================================================
+            SECTION 6: Review History Timeline
+        ========================================================= */}
+        {reviewHistory.length > 0 && (
+          <section className="bg-white p-6 rounded-2xl shadow-xs border border-slate-200">
+            <h2 className="text-lg font-bold text-slate-900 mb-4 border-b pb-2 flex items-center gap-2">
+              <History size={18} className="text-blue-600" />
+              <span>Review History &amp; Revisions</span>
+            </h2>
+            <div className="space-y-3">
+              {reviewHistory.map((item: any, idx: number) => (
+                <div
+                  key={idx}
+                  className="p-3 bg-slate-50 border border-slate-100 rounded-xl text-xs space-y-1"
+                >
+                  <div className="flex items-center justify-between">
+                    <span
+                      className={`font-bold px-2 py-0.5 rounded text-[10px] ${
+                        item.action === "APPROVE"
+                          ? "bg-emerald-100 text-emerald-800"
+                          : item.action === "REQUEST_CHANGES"
+                          ? "bg-orange-100 text-orange-900"
+                          : "bg-blue-100 text-blue-900"
+                      }`}
+                    >
+                      {item.action === "APPROVE"
+                        ? "Trip Approved"
+                        : item.action === "REQUEST_CHANGES"
+                        ? "Changes Requested"
+                        : "Resubmitted by Rider"}
+                    </span>
+                    <span className="text-slate-400 text-[11px]" suppressHydrationWarning>
+                      {formatSriLankanDate(item.timestamp)}
+                    </span>
+                  </div>
+                  <p className="text-slate-800 font-medium">
+                    {item.actorName || item.actorRole || "System"}: {item.feedback}
+                  </p>
+                  {item.revision && (
+                    <span className="text-[10px] text-slate-400">
+                      Revision: v{item.revision}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* =========================================================
+            SECTION 7: Pricing Confirmation & Publishing
+        ========================================================= */}
+        <div className="bg-white p-6 rounded-2xl shadow-xs border border-slate-200">
+          <h2 className="text-lg font-bold text-slate-900 mb-3 border-b pb-2">
+            Confirm Pricing &amp; Publish to Drivers
+          </h2>
+
+          <div className="space-y-4 mb-4">
             <div className="flex flex-col sm:flex-row gap-4">
               <div className="flex-1">
-                <label className="block text-sm font-bold text-slate-700 mb-2">Pricing Option</label>
-                <select 
-                  value={priceMode} 
-                  onChange={e => setPriceMode(e.target.value as "ACCEPT_BUDGET" | "CUSTOM_PRICE")}
-                  className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Pricing Method
+                </label>
+                <select
+                  value={priceMode}
+                  onChange={(e) =>
+                    setPriceMode(e.target.value as "ACCEPT_BUDGET" | "CUSTOM_PRICE")
+                  }
+                  className="w-full p-2.5 border border-slate-200 rounded-xl bg-slate-50 text-xs font-medium focus:ring-2 focus:ring-blue-500"
                 >
-                  {hasValidTransportBudget && <option value="ACCEPT_BUDGET">Accept rider's budget</option>}
-                  <option value="CUSTOM_PRICE">Set a different price</option>
+                  {hasValidTransportBudget && (
+                    <option value="ACCEPT_BUDGET">
+                      Accept rider's proposed budget ({proposedCurrency} {proposedBudget})
+                    </option>
+                  )}
+                  <option value="CUSTOM_PRICE">Specify custom confirmed price</option>
                 </select>
               </div>
             </div>
 
             {priceMode === "CUSTOM_PRICE" && (
               <div className="flex flex-col sm:flex-row gap-4">
-                <div className="flex-1">
-                  <label className="block text-sm font-bold text-slate-700 mb-2">Currency</label>
-                  <select 
-                    value={confirmedCurrency} 
-                    onChange={e => setConfirmedCurrency(e.target.value)}
-                    className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                <div className="w-full sm:w-1/3">
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Currency
+                  </label>
+                  <select
+                    value={confirmedCurrency}
+                    onChange={(e) => setConfirmedCurrency(e.target.value)}
+                    className="w-full p-2.5 border border-slate-200 rounded-xl bg-slate-50 text-xs font-medium focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="USD">USD</option>
                     <option value="EUR">EUR</option>
@@ -551,48 +869,171 @@ export default function AdminTripReviewClient({ booking }: { booking: any }) {
                     <option value="LKR">LKR</option>
                   </select>
                 </div>
-                <div className="flex-[2]">
-                  <label className="block text-sm font-bold text-slate-700 mb-2">Confirmed Total Amount</label>
-                  <input 
-                    type="number" 
+                <div className="w-full sm:w-2/3">
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Confirmed Price Amount *
+                  </label>
+                  <input
+                    type="number"
                     value={confirmedAmount}
-                    onChange={e => setConfirmedAmount(e.target.value)}
-                    placeholder="E.g. 450"
-                    className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    onChange={(e) => setConfirmedAmount(e.target.value)}
+                    placeholder="e.g. 500"
+                    className="w-full p-2.5 border border-slate-200 rounded-xl bg-slate-50 text-xs font-medium focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>
             )}
           </div>
-          <p className="text-xs text-slate-500">This amount will be presented to the rider for payment. Payment cannot be changed once approved.</p>
-        </div>
 
-        <div className="flex flex-col sm:flex-row gap-4 pt-4">
-          <button 
-            onClick={approveTrip}
-            disabled={loading}
-            className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-xl flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
-          >
-            <CheckCircle size={20} /> Request payment of {effectiveAmount || '0'} {effectiveCurrency}
-          </button>
-          
-          <button 
-            onClick={submitReview}
-            disabled={loading}
-            className="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-bold py-4 px-6 rounded-xl flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
-          >
-            <Send size={20} /> Request Changes
-          </button>
+          <p className="text-[11px] text-slate-500 mb-4">
+            Approving publishes this custom tour to eligible approved drivers and notifies the rider that their trip is ready for driver acceptance.
+          </p>
 
-          <button 
-            onClick={rejectTrip}
-            disabled={loading}
-            className="bg-red-500 hover:bg-red-600 text-white font-bold py-4 px-6 rounded-xl flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
-          >
-            Reject Trip
-          </button>
+          <div className="flex flex-col sm:flex-row gap-3 pt-2">
+            <button
+              type="button"
+              onClick={approveTrip}
+              disabled={loading}
+              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-6 rounded-xl flex items-center justify-center gap-2 transition-colors disabled:opacity-50 text-sm cursor-pointer shadow-xs"
+            >
+              <CheckCircle size={18} />
+              <span>
+                Approve Trip &amp; Publish for {effectiveCurrency} {effectiveAmount || "0"}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setShowChangesModal(true);
+                setChangesError("");
+              }}
+              disabled={loading}
+              className="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-bold py-3.5 px-6 rounded-xl flex items-center justify-center gap-2 transition-colors disabled:opacity-50 text-sm cursor-pointer shadow-xs"
+            >
+              <Send size={18} />
+              <span>Request Changes</span>
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* =========================================================
+          REQUEST CHANGES MODAL
+      ========================================================= */}
+      {showChangesModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between border-b pb-3">
+              <h3 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
+                <Send size={18} className="text-amber-500" />
+                <span>Request Trip Changes (Revision {currentRevision})</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowChangesModal(false)}
+                className="text-slate-400 hover:text-slate-700 font-bold p-1"
+              >
+                &times;
+              </button>
+            </div>
+
+            {changesError && (
+              <div className="p-3 bg-red-50 text-red-700 rounded-xl text-xs font-medium border border-red-200">
+                {changesError}
+              </div>
+            )}
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                Explanation for Rider (Required) *
+              </label>
+              <textarea
+                rows={3}
+                value={changesFeedback}
+                onChange={(e) => setChangesFeedback(e.target.value)}
+                placeholder="e.g. Please clarify your pickup time for Day 1 and update the hotel destination in Kandy."
+                className="w-full p-3 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-amber-500 bg-slate-50"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                Select Affected Fields (Optional)
+              </label>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                {[
+                  { id: "contact", label: "Contact & Passenger" },
+                  { id: "basics", label: "Trip Basics & Dates" },
+                  { id: "logistics", label: "Pickup / Drop-off" },
+                  { id: "itinerary", label: "Itinerary & Places" },
+                  { id: "budget", label: "Budget & Pricing" },
+                ].map((field) => (
+                  <label
+                    key={field.id}
+                    className="flex items-center gap-2 p-2 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedFields.includes(field.id)}
+                      onChange={() => handleToggleField(field.id)}
+                      className="rounded text-amber-600 focus:ring-amber-500"
+                    />
+                    <span className="text-slate-800 font-medium text-[11px]">{field.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {itineraryDays.length > 0 && (
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Select Affected Itinerary Days (Optional)
+                </label>
+                <div className="flex flex-wrap gap-2 text-xs">
+                  {itineraryDays.map((d: any) => (
+                    <label
+                      key={d.dayNumber}
+                      className={`px-3 py-1.5 rounded-lg border text-xs font-bold cursor-pointer transition-colors ${
+                        selectedDays.includes(d.dayNumber)
+                          ? "bg-amber-100 border-amber-300 text-amber-900"
+                          : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        className="sr-only"
+                        checked={selectedDays.includes(d.dayNumber)}
+                        onChange={() => handleToggleDay(d.dayNumber)}
+                      />
+                      <span>Day {d.dayNumber}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-3 border-t">
+              <button
+                type="button"
+                onClick={() => setShowChangesModal(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={submittingChanges || !changesFeedback.trim()}
+                onClick={submitRequestChanges}
+                className="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 disabled:opacity-50 cursor-pointer shadow-xs"
+              >
+                {submittingChanges ? <Loader2 size={13} className="animate-spin" /> : <Send size={14} />}
+                <span>Send Change Request</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Calendar, Clock, MapPin, Car, Info, Package as PackageIcon, ArrowRight, MessageCircle } from "lucide-react";
+import { Calendar, Clock, MapPin, Car, Info, Package as PackageIcon, ArrowRight, MessageCircle, AlertCircle, CheckCircle2 } from "lucide-react";
 import PaymentActionClient from "@/components/booking/PaymentActionClient";
 import { useSocket } from "@/components/providers/SocketProvider";
 import { useRouter } from "next/navigation";
@@ -119,6 +119,11 @@ export default function MyBookingsClient({ initialBookings, initialEnquiries }: 
 
   const getStatusColor = (status: string) => {
     switch (status) {
+      case "PENDING_APPROVAL":
+        return "bg-amber-100 text-amber-900 border-amber-300";
+      case "CHANGES_REQUESTED":
+      case "NEEDS_REVISION":
+        return "bg-orange-100 text-orange-900 border-orange-300";
       case "PENDING":
         return "bg-yellow-100 text-yellow-800 border-yellow-200";
       case "CONFIRMED":
@@ -174,7 +179,13 @@ export default function MyBookingsClient({ initialBookings, initialEnquiries }: 
                       booking.status
                     )}`}
                   >
-                    {booking.status.replace(/_/g, " ")}
+                    {booking.status === "PENDING_APPROVAL"
+                      ? "Awaiting Admin Review"
+                      : booking.status === "CHANGES_REQUESTED" || booking.status === "NEEDS_REVISION"
+                      ? "Changes Requested"
+                      : booking.customTripDetails?.isCustomTrip && booking.status === "PENDING"
+                      ? "Approved • Awaiting Driver"
+                      : booking.status.replace(/_/g, " ")}
                   </div>
                 </div>
 
@@ -347,24 +358,89 @@ export default function MyBookingsClient({ initialBookings, initialEnquiries }: 
                         <span>Track Driver</span>
                       </Link>
                     </div>
-                  ) : booking.status === "NEEDS_REVISION" || booking.status === "DRAFT" ? (
-                    <div className="bg-amber-50 rounded-xl p-4 border border-amber-100 flex flex-col gap-3">
+                  ) : booking.status === "PENDING_APPROVAL" ? (
+                    <div className="bg-amber-50 rounded-xl p-4 border border-amber-200 flex flex-col gap-2.5">
+                      <div className="flex items-start gap-2.5">
+                        <Clock size={18} className="text-amber-600 shrink-0 mt-0.5" />
+                        <div>
+                          <h4 className="text-sm font-bold text-amber-900">
+                            Your custom trip is awaiting admin review.
+                          </h4>
+                          <p className="text-xs text-amber-800 mt-0.5">
+                            Our team is reviewing your itinerary, routes, and vehicle requirements. We will notify you once approved or if any adjustments are needed.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="pt-2 border-t border-amber-200/60 flex items-center justify-between text-[11px] text-amber-700 font-medium">
+                        <span>Revision {booking.customTripDetails?.revision || 1}</span>
+                        <a
+                          href={`/trip-builder?edit=${booking._id}`}
+                          className="font-bold underline hover:text-amber-900"
+                        >
+                          Modify Request
+                        </a>
+                      </div>
+                    </div>
+                  ) : booking.status === "CHANGES_REQUESTED" || booking.status === "NEEDS_REVISION" ? (
+                    <div className="bg-orange-50 rounded-xl p-4 border border-orange-200 flex flex-col gap-3">
                       <div>
-                        <h4 className="text-sm font-bold text-amber-900 mb-1">
-                          {booking.status === "DRAFT" ? "Draft Saved" : "Action Required"}
-                        </h4>
-                        <p className="text-xs text-amber-800">
-                          {booking.status === "DRAFT"
-                            ? "Finish your trip request when you're ready."
-                            : "The admin requested changes to your trip plan."}
+                        <div className="flex items-center gap-2 mb-1">
+                          <AlertCircle size={16} className="text-orange-600 shrink-0" />
+                          <h4 className="text-sm font-bold text-orange-950">
+                            Changes Requested by Admin
+                          </h4>
+                        </div>
+                        <p className="text-xs font-semibold text-orange-900 bg-white/90 p-2.5 rounded-lg border border-orange-200 mt-1.5 leading-relaxed">
+                          "{booking.customTripDetails?.changeRequest?.feedback || "Please review the requested changes and update your trip plan."}"
                         </p>
+                        {(booking.customTripDetails?.changeRequest?.affectedFields?.length || 0) > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            {booking.customTripDetails?.changeRequest?.affectedFields?.map((f: string) => (
+                              <span key={f} className="text-[10px] font-bold px-2 py-0.5 bg-orange-200/70 text-orange-900 rounded-md">
+                                {f}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {(booking.customTripDetails?.changeRequest?.affectedDays?.length || 0) > 0 && (
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {booking.customTripDetails?.changeRequest?.affectedDays?.map((d: number) => (
+                              <span key={d} className="text-[10px] font-bold px-2 py-0.5 bg-amber-200 text-amber-950 rounded-md">
+                                Day {d}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                       <a
                         href={`/trip-builder?edit=${booking._id}`}
-                        className="bg-amber-500 hover:bg-amber-600 text-white text-center text-sm font-bold py-2.5 rounded-lg transition-colors w-full shadow-md shadow-amber-500/20"
+                        className="bg-orange-600 hover:bg-orange-700 text-white text-center text-sm font-bold py-2.5 rounded-lg transition-colors w-full shadow-md shadow-orange-500/20"
                       >
-                        Edit Trip Request
+                        Edit &amp; Resubmit
                       </a>
+                    </div>
+                  ) : booking.status === "DRAFT" ? (
+                    <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 flex flex-col gap-3">
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-800 mb-1">Draft Saved</h4>
+                        <p className="text-xs text-slate-500">Finish and submit your custom trip when ready.</p>
+                      </div>
+                      <a
+                        href={`/trip-builder?edit=${booking._id}`}
+                        className="bg-blue-600 hover:bg-blue-700 text-white text-center text-sm font-bold py-2.5 rounded-lg transition-colors w-full shadow-sm"
+                      >
+                        Continue Trip Builder
+                      </a>
+                    </div>
+                  ) : booking.customTripDetails?.isCustomTrip && booking.status === "PENDING" ? (
+                    <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-200 flex flex-col gap-2">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+                        <h4 className="text-sm font-bold text-emerald-950">Trip Approved &amp; Published</h4>
+                      </div>
+                      <p className="text-xs text-emerald-800">
+                        Your custom trip is verified and published to our driver network. We will notify you once a driver accepts your trip!
+                      </p>
                     </div>
                   ) : booking.status === "AWAITING_PAYMENT" ||
                     booking.status === "PENDING_ADMIN_CONFIRMATION" ? (

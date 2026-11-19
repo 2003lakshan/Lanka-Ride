@@ -978,6 +978,46 @@ export default function TripBuilderClient({
       </div>
 
       <div className="p-6 sm:p-10">
+        {/* Prominent Admin Change Request Banner */}
+        {initialData?.customTripDetails?.changeRequest?.feedback && (
+          <div className="bg-orange-50 border border-orange-200 rounded-2xl p-5 mb-8 shadow-xs">
+            <div className="flex items-center gap-2 text-orange-950 font-bold text-base mb-1">
+              <AlertCircle size={20} className="text-orange-600 shrink-0" />
+              <span>
+                Changes Requested by Admin (Revision {initialData?.customTripDetails?.revision || 1})
+              </span>
+            </div>
+            <p className="text-sm font-semibold text-orange-900 bg-white/95 p-3 rounded-xl border border-orange-200 mt-2 leading-relaxed">
+              &ldquo;{initialData.customTripDetails.changeRequest.feedback}&rdquo;
+            </p>
+            <div className="flex flex-wrap items-center gap-2 mt-3">
+              <span className="text-xs font-bold text-orange-950">Areas to adjust:</span>
+              {initialData.customTripDetails.changeRequest.affectedFields &&
+              initialData.customTripDetails.changeRequest.affectedFields.length > 0 ? (
+                initialData.customTripDetails.changeRequest.affectedFields.map((field: string) => (
+                  <span
+                    key={field}
+                    className="text-xs font-bold px-2.5 py-1 bg-orange-200/80 text-orange-950 rounded-lg capitalize"
+                  >
+                    {field}
+                  </span>
+                ))
+              ) : (
+                <span className="text-xs text-orange-800">Trip details</span>
+              )}
+              {initialData.customTripDetails.changeRequest.affectedDays &&
+                initialData.customTripDetails.changeRequest.affectedDays.map((day: number) => (
+                  <span
+                    key={day}
+                    className="text-xs font-bold px-2.5 py-1 bg-amber-200 text-amber-950 rounded-lg"
+                  >
+                    Day {day}
+                  </span>
+                ))}
+            </div>
+          </div>
+        )}
+
         {error && (
           <div className="bg-red-50 text-red-700 p-4 rounded-xl mb-6 text-sm font-medium border border-red-100 flex items-center gap-2">
             <AlertCircle size={16} className="shrink-0" />
@@ -2161,7 +2201,13 @@ export default function TripBuilderClient({
                     <span>Submitting...</span>
                   ) : (
                     <>
-                      <span>Submit Trip Request</span>
+                      <span>
+                        {initialData?._id
+                          ? initialData?.status === "CHANGES_REQUESTED"
+                            ? "Resubmit Custom Trip"
+                            : "Update Trip Request"
+                          : "Submit Trip Request"}
+                      </span>
                       <ChevronRight size={16} />
                     </>
                   )}

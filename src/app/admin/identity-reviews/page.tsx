@@ -16,7 +16,8 @@ import {
   ShieldCheck,
   FileText,
   User as UserIcon,
-  ChevronRight
+  ChevronRight,
+  CalendarCheck
 } from "lucide-react";
 import { formatSriLankanDate } from "@/lib/dateTime";
 
@@ -73,6 +74,16 @@ export default async function AdminIdentityReviewsPage(props: {
           <p className="text-sm text-slate-500 mt-1">
             Review custom private trip identity submissions and verify passenger documents.
           </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <Link
+            href="/admin/custom-trips"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl shadow-xs transition-colors"
+          >
+            <CalendarCheck size={15} className="text-blue-600" />
+            <span>Custom Trips Management</span>
+          </Link>
         </div>
       </div>
 

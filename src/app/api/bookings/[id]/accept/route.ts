@@ -130,24 +130,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     // Custom trip specific server-side verification:
-    // Must have verified PAID status and admin approval
+    // Requires admin approval before driver assignment
     if (existingBooking.customTripDetails?.isCustomTrip) {
-      if (existingBooking.paymentStatus !== "PAID") {
-        return NextResponse.json(
-          { 
-            error: "Cannot accept unverified custom trip. Payment must be confirmed before driver assignment.",
-            code: "PAYMENT_NOT_VERIFIED"
-          },
-          { status: 400 }
-        );
-      }
-
       if (!existingBooking.approvedAt) {
         return NextResponse.json(
           { 
             error: "Cannot accept custom trip. Final admin approval is pending.",
             code: "ADMIN_APPROVAL_PENDING"
-          },
+          }, 
           { status: 400 }
         );
       }
@@ -229,15 +219,23 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     // 4. Atomic conditional update to eliminate race conditions between multiple simultaneous drivers
+    const atomicFilter: any = { 
+      _id: id, 
+      status: { $in: ["PENDING", "CONFIRMED"] },
+      $or: [
+        { driverId: null },
+        { driverId: { $exists: false } }
+      ]
+    };
+    if (existingBooking.customTripDetails?.isCustomTrip) {
+      atomicFilter.approvedAt = { $exists: true, $ne: null };
+      if (existingBooking.customTripDetails.approvedRevision) {
+        atomicFilter["customTripDetails.approvedRevision"] = existingBooking.customTripDetails.approvedRevision;
+      }
+    }
+
     const updatedBooking = await Booking.findOneAndUpdate(
-      { 
-        _id: id, 
-        status: { $in: ["PENDING", "CONFIRMED"] },
-        $or: [
-          { driverId: null },
-          { driverId: { $exists: false } }
-        ]
-      },
+      atomicFilter,
       { 
         status: "DRIVER_ASSIGNED",
         driverId: driver._id,

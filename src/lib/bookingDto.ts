@@ -117,6 +117,35 @@ export interface MyCustomTripDetailsDTO {
   itinerary?: MyCustomTripDayDTO[];
   confirmedAmount?: number;
   confirmedCurrency?: "LKR" | "USD" | "EUR" | "GBP" | string;
+  revision?: number;
+  approvedRevision?: number;
+  changeRequest?: {
+    feedback: string;
+    affectedFields?: string[];
+    affectedDays?: number[];
+    requestedAt?: string | null;
+    requestedByName?: string;
+    revision?: number;
+  } | null;
+  bookingContact?: {
+    fullName?: string;
+    country?: string;
+    email?: string;
+    phone?: string;
+    isBookingForSomeoneElse?: boolean;
+    passenger?: {
+      fullName?: string;
+      phone?: string;
+    };
+  } | null;
+  identityVerification?: {
+    identityId?: string;
+    documentType?: "NATIONAL_ID" | "PASSPORT";
+    status?: string;
+    version?: number;
+    reviewedVersion?: number;
+    rejectionReason?: string;
+  } | null;
 }
 
 
@@ -447,6 +476,46 @@ export function serializeBookingToDTO(b: any): MyBookingDTO {
               drivingTimeMins: typeof day.drivingTimeMins === "number" ? day.drivingTimeMins : undefined,
             }))
           : [],
+        revision: typeof b.customTripDetails.revision === "number" ? b.customTripDetails.revision : 1,
+        approvedRevision: typeof b.customTripDetails.approvedRevision === "number" ? b.customTripDetails.approvedRevision : undefined,
+        changeRequest: b.customTripDetails.changeRequest
+          ? {
+              feedback: b.customTripDetails.changeRequest.feedback || "",
+              affectedFields: Array.isArray(b.customTripDetails.changeRequest.affectedFields)
+                ? b.customTripDetails.changeRequest.affectedFields
+                : [],
+              affectedDays: Array.isArray(b.customTripDetails.changeRequest.affectedDays)
+                ? b.customTripDetails.changeRequest.affectedDays
+                : [],
+              requestedAt: toIsoString(b.customTripDetails.changeRequest.requestedAt),
+              requestedByName: b.customTripDetails.changeRequest.requestedByName || undefined,
+            }
+          : null,
+        bookingContact: b.customTripDetails.bookingContact
+          ? {
+              fullName: b.customTripDetails.bookingContact.fullName || undefined,
+              country: b.customTripDetails.bookingContact.country || undefined,
+              email: b.customTripDetails.bookingContact.email || undefined,
+              phone: b.customTripDetails.bookingContact.phone || undefined,
+              isBookingForSomeoneElse: Boolean(b.customTripDetails.bookingContact.isBookingForSomeoneElse),
+              passenger: b.customTripDetails.bookingContact.passenger
+                ? {
+                    fullName: b.customTripDetails.bookingContact.passenger.fullName || undefined,
+                    phone: b.customTripDetails.bookingContact.passenger.phone || undefined,
+                  }
+                : undefined,
+            }
+          : null,
+        identityVerification: b.customTripDetails.identityVerification
+          ? {
+              identityId: b.customTripDetails.identityVerification.identityId?.toString(),
+              documentType: b.customTripDetails.identityVerification.documentType,
+              status: b.customTripDetails.identityVerification.status,
+              version: typeof b.customTripDetails.identityVerification.version === "number" ? b.customTripDetails.identityVerification.version : 1,
+              reviewedVersion: typeof b.customTripDetails.identityVerification.reviewedVersion === "number" ? b.customTripDetails.identityVerification.reviewedVersion : undefined,
+              rejectionReason: b.customTripDetails.identityVerification.rejectionReason,
+            }
+          : null,
       }
     : null;
 

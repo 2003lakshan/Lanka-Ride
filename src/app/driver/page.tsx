@@ -90,7 +90,6 @@ export default async function DriverDashboard() {
               { "customTripDetails.isCustomTrip": { $ne: true } },
               {
                 "customTripDetails.isCustomTrip": true,
-                paymentStatus: "PAID",
                 approvedAt: { $exists: true, $ne: null },
               },
             ],

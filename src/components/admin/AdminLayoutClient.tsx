@@ -27,7 +27,7 @@ export const adminNavItems = [
   { name: "PickMe", href: "/admin/pickme", icon: Navigation },
   { name: "Live Tracking", href: "/admin/active-trips", icon: MapPin },
   { name: "Driver Approvals", href: "/admin/approvals", icon: ShieldCheck },
-  { name: "Custom Trip", href: "/admin/identity-reviews", icon: IdCard },
+  { name: "Custom Trip", href: "/admin/custom-trips", icon: IdCard },
   { name: "Drivers", href: "/admin/users?role=DRIVER", icon: Car },
   { name: "Riders", href: "/admin/users?role=TOURIST", icon: Users },
   { name: "Tour Packages", href: "/admin/packages", icon: Package },
@@ -110,6 +110,9 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
   // Find active nav item for mobile header label
   const activeItem = adminNavItems.find((item) => {
     if (item.href === "/admin") return pathname === "/admin";
+    if (item.name === "Custom Trip") {
+      return pathname.startsWith("/admin/custom-trips") || pathname.startsWith("/admin/identity-reviews");
+    }
     return pathname.startsWith(item.href.split("?")[0]);
   });
 
@@ -196,7 +199,9 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
               {adminNavItems.map((item) => {
                 const isActive = item.href === "/admin" 
                   ? pathname === "/admin" 
-                  : pathname.startsWith(item.href.split("?")[0]);
+                  : item.name === "Custom Trip"
+                    ? (pathname.startsWith("/admin/custom-trips") || pathname.startsWith("/admin/identity-reviews"))
+                    : pathname.startsWith(item.href.split("?")[0]);
                 const Icon = item.icon;
 
                 return (
@@ -300,7 +305,9 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
               {adminNavItems.map((item) => {
                 const isActive = item.href === "/admin" 
                   ? pathname === "/admin" 
-                  : pathname.startsWith(item.href.split("?")[0]);
+                  : item.name === "Custom Trip"
+                    ? (pathname.startsWith("/admin/custom-trips") || pathname.startsWith("/admin/identity-reviews"))
+                    : pathname.startsWith(item.href.split("?")[0]);
                 const Icon = item.icon;
 
                 return (

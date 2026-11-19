@@ -183,6 +183,28 @@ export interface ICustomTripDetails {
     };
     uploadedAt?: Date;
   };
+  revision?: number;
+  approvedRevision?: number;
+  changeRequest?: {
+    feedback: string;
+    affectedFields?: string[];
+    affectedDays?: number[];
+    requestedAt: Date;
+    requestedBy?: mongoose.Types.ObjectId | string;
+    requestedByName?: string;
+    revision?: number;
+  };
+  reviewHistory?: Array<{
+    action: "REQUEST_CHANGES" | "APPROVE" | "REJECT" | "RESUBMIT";
+    feedback?: string;
+    affectedFields?: string[];
+    affectedDays?: number[];
+    actorId?: mongoose.Types.ObjectId | string;
+    actorRole?: "ADMIN" | "TOURIST";
+    actorName?: string;
+    timestamp: Date;
+    revision?: number;
+  }>;
 }
 
 export interface IBooking extends Document {
@@ -220,6 +242,7 @@ export interface IBooking extends Document {
     | "DRAFT"
     | "PENDING_APPROVAL"
     | "NEEDS_REVISION"
+    | "CHANGES_REQUESTED"
     | "PENDING"
     | "AWAITING_PAYMENT"
     | "PENDING_ADMIN_CONFIRMATION"
@@ -418,6 +441,33 @@ const CustomTripDetailsSchema = new Schema({
     required: false,
     default: undefined,
   },
+  revision: { type: Number, default: 1 },
+  approvedRevision: { type: Number },
+  changeRequest: {
+    type: new Schema({
+      feedback: { type: String },
+      affectedFields: [{ type: String }],
+      affectedDays: [{ type: Number }],
+      requestedAt: { type: Date },
+      requestedBy: { type: Schema.Types.ObjectId, ref: "User" },
+      requestedByName: { type: String },
+      revision: { type: Number },
+    }, { _id: false }),
+    default: null,
+  },
+  reviewHistory: [
+    new Schema({
+      action: { type: String, enum: ["REQUEST_CHANGES", "APPROVE", "REJECT", "RESUBMIT"] },
+      feedback: { type: String },
+      affectedFields: [{ type: String }],
+      affectedDays: [{ type: Number }],
+      actorId: { type: Schema.Types.ObjectId, ref: "User" },
+      actorRole: { type: String, enum: ["ADMIN", "TOURIST"] },
+      actorName: { type: String },
+      timestamp: { type: Date, default: Date.now },
+      revision: { type: Number },
+    }, { _id: false })
+  ],
 }, { _id: false });
 
 const BookingSchema: Schema = new Schema(
@@ -517,6 +567,7 @@ const BookingSchema: Schema = new Schema(
         "DRAFT",
         "PENDING_APPROVAL",
         "NEEDS_REVISION",
+        "CHANGES_REQUESTED",
         "PENDING",
         "AWAITING_PAYMENT",
         "PENDING_ADMIN_CONFIRMATION",
