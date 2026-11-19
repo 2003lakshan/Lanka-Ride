@@ -156,6 +156,8 @@ export interface ICustomTripDetails {
     identityId?: mongoose.Types.ObjectId | string;
     documentType?: "NATIONAL_ID" | "PASSPORT";
     status?: "PENDING_REVIEW" | "APPROVED" | "REJECTED";
+    version?: number;
+    reviewedVersion?: number;
     rejectionReason?: string;
     reviewedBy?: mongoose.Types.ObjectId | string;
     reviewedAt?: Date;
@@ -386,6 +388,8 @@ const CustomTripDetailsSchema = new Schema({
         enum: ["PENDING_REVIEW", "APPROVED", "REJECTED"],
         default: "PENDING_REVIEW",
       },
+      version: { type: Number },
+      reviewedVersion: { type: Number },
       rejectionReason: { type: String },
       reviewedBy: { type: Schema.Types.ObjectId, ref: "User" },
       reviewedAt: { type: Date },

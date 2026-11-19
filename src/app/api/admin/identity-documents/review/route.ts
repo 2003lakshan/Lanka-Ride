@@ -16,7 +16,7 @@ export async function POST(req: Request) {
 
     const adminId = (session.user as any).id;
     const body = await req.json().catch(() => ({}));
-    const { identityId, action, rejectionReason, bookingId } = body;
+    const { identityId, action, rejectionReason, bookingId, expectedVersion } = body;
 
     if (!identityId) {
       return NextResponse.json({ error: "Identity ID is required." }, { status: 400 });
@@ -37,17 +37,30 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Rider identity record not found." }, { status: 404 });
     }
 
+    // Exact Version Gating: Ensure approval applies to the exact document version reviewed
+    if (expectedVersion !== undefined && identity.version !== expectedVersion) {
+      return NextResponse.json(
+        {
+          error: "The rider updated or replaced their document while you were reviewing. Please refresh to inspect the updated document.",
+          conflict: true,
+          expectedVersion,
+          currentVersion: identity.version,
+        },
+        { status: 409 }
+      );
+    }
+
     const now = new Date();
+    identity.reviewedVersion = identity.version;
+    identity.reviewedBy = adminId;
+    identity.reviewedAt = now;
+
     if (action === "APPROVE") {
       identity.status = "APPROVED";
       identity.rejectionReason = undefined;
-      identity.reviewedBy = adminId;
-      identity.reviewedAt = now;
     } else {
       identity.status = "REJECTED";
       identity.rejectionReason = rejectionReason.trim();
-      identity.reviewedBy = adminId;
-      identity.reviewedAt = now;
     }
 
     await identity.save();
@@ -61,6 +74,8 @@ export async function POST(req: Request) {
     if (bookingId) {
       await Booking.findByIdAndUpdate(bookingId, {
         "customTripDetails.identityVerification.status": identity.status,
+        "customTripDetails.identityVerification.version": identity.version,
+        "customTripDetails.identityVerification.reviewedVersion": identity.reviewedVersion,
         "customTripDetails.identityVerification.rejectionReason": identity.rejectionReason,
         "customTripDetails.identityVerification.reviewedBy": adminId,
         "customTripDetails.identityVerification.reviewedAt": now,
@@ -70,6 +85,8 @@ export async function POST(req: Request) {
         { touristId: identity.userId, "customTripDetails.isCustomTrip": true },
         {
           "customTripDetails.identityVerification.status": identity.status,
+          "customTripDetails.identityVerification.version": identity.version,
+          "customTripDetails.identityVerification.reviewedVersion": identity.reviewedVersion,
           "customTripDetails.identityVerification.rejectionReason": identity.rejectionReason,
           "customTripDetails.identityVerification.reviewedBy": adminId,
           "customTripDetails.identityVerification.reviewedAt": now,
@@ -97,6 +114,8 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       status: identity.status,
+      version: identity.version,
+      reviewedVersion: identity.reviewedVersion,
       reviewedAt: identity.reviewedAt,
       rejectionReason: identity.rejectionReason,
       message: `Document successfully ${identity.status.toLowerCase()}.`,
@@ -106,3 +125,4 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: error.message || "Failed to process identity review." }, { status: 500 });
   }
 }
+

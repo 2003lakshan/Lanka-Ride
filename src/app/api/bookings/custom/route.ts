@@ -87,6 +87,17 @@ export async function POST(req: Request) {
         );
       }
 
+      const isDocExpired = Boolean(
+        identityDoc.isArchived ||
+        (identityDoc.retentionUntil && new Date(identityDoc.retentionUntil) <= new Date())
+      );
+      if (isDocExpired) {
+        return NextResponse.json(
+          { error: "Your previously submitted identity document has expired under our data retention policy. Please upload fresh documents to submit your trip request." },
+          { status: 400 }
+        );
+      }
+
       if (identityDoc.status === "REJECTED") {
         return NextResponse.json(
           { error: `Your identity document was rejected: "${identityDoc.rejectionReason}". Please re-upload your document.` },
@@ -94,10 +105,26 @@ export async function POST(req: Request) {
         );
       }
 
+      const isFrontValid = Boolean(
+        identityDoc.files?.front?.fileId &&
+        identityDoc.files?.front?.storagePath &&
+        identityDoc.files?.front?.storagePath !== "[DELETED_BY_RETENTION_POLICY]"
+      );
+      const isBackValid = Boolean(
+        identityDoc.files?.back?.fileId &&
+        identityDoc.files?.back?.storagePath &&
+        identityDoc.files?.back?.storagePath !== "[DELETED_BY_RETENTION_POLICY]"
+      );
+      const isPhotoPageValid = Boolean(
+        identityDoc.files?.photoPage?.fileId &&
+        identityDoc.files?.photoPage?.storagePath &&
+        identityDoc.files?.photoPage?.storagePath !== "[DELETED_BY_RETENTION_POLICY]"
+      );
+
       const isIdentityComplete =
         identityDoc.documentType === "NATIONAL_ID"
-          ? Boolean(identityDoc.files?.front?.fileId && identityDoc.files?.back?.fileId)
-          : Boolean(identityDoc.files?.photoPage?.fileId);
+          ? Boolean(isFrontValid && isBackValid)
+          : Boolean(isPhotoPageValid);
 
       if (!isIdentityComplete) {
         return NextResponse.json(
@@ -170,6 +197,8 @@ export async function POST(req: Request) {
         identityId: activeIdentity._id,
         documentType: activeIdentity.documentType,
         status: activeIdentity.status,
+        version: activeIdentity.version,
+        reviewedVersion: activeIdentity.reviewedVersion,
         rejectionReason: activeIdentity.rejectionReason,
         reviewedBy: activeIdentity.reviewedBy,
         reviewedAt: activeIdentity.reviewedAt,

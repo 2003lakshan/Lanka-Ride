@@ -37,11 +37,20 @@ export default async function TripBuilderPage(props: { searchParams: Promise<{ e
   const rawIdentity = await RiderIdentity.findOne({ userId: (session.user as any).id }).lean();
   let existingIdentity = null;
   if (rawIdentity) {
-    existingIdentity = JSON.parse(JSON.stringify(rawIdentity));
-    if (existingIdentity.files) {
-      for (const key of ["front", "back", "photoPage"]) {
-        if (existingIdentity.files[key]?.fileId) {
-          existingIdentity.files[key].viewUrl = generateSignedDocumentUrl(existingIdentity.files[key].fileId, 3600);
+    const isDocExpired = Boolean(
+      rawIdentity.isArchived ||
+      (rawIdentity.retentionUntil && new Date(rawIdentity.retentionUntil) <= new Date())
+    );
+    if (!isDocExpired) {
+      existingIdentity = JSON.parse(JSON.stringify(rawIdentity));
+      if (existingIdentity.files) {
+        for (const key of ["front", "back", "photoPage"]) {
+          const file = existingIdentity.files[key];
+          if (file?.fileId && file.storagePath !== "[DELETED_BY_RETENTION_POLICY]") {
+            existingIdentity.files[key].viewUrl = generateSignedDocumentUrl(file.fileId, 3600);
+          } else {
+            existingIdentity.files[key] = undefined;
+          }
         }
       }
     }

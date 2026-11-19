@@ -50,7 +50,7 @@ export async function POST(req: Request) {
 
     if (acknowledgedPurpose !== "true") {
       return NextResponse.json(
-        { error: "You must acknowledge the identity verification purpose before uploading documents." },
+        { error: "You must acknowledge that this document is collected to verify the booking contact and support passenger safety before uploading documents." },
         { status: 400 }
       );
     }
@@ -123,13 +123,18 @@ export async function POST(req: Request) {
         ? Boolean(identity.files.front?.fileId && identity.files.back?.fileId)
         : Boolean(identity.files.photoPage?.fileId);
 
-    if (isComplete) {
-      // Re-uploading or completing sets status to PENDING_REVIEW
-      identity.status = "PENDING_REVIEW";
-      identity.rejectionReason = undefined;
-      const retentionDays = getRetentionDays();
-      identity.retentionUntil = new Date(Date.now() + retentionDays * 24 * 60 * 60 * 1000);
-    }
+    // Any new upload or file replacement increments the document version and invalidates prior review status
+    identity.version = (identity.version || 0) + 1;
+    identity.filesUpdatedAt = new Date();
+    identity.status = "PENDING_REVIEW";
+    identity.reviewedBy = undefined;
+    identity.reviewedAt = undefined;
+    identity.reviewedVersion = undefined;
+    identity.rejectionReason = undefined;
+    identity.isArchived = false;
+
+    const retentionDays = getRetentionDays();
+    identity.retentionUntil = new Date(Date.now() + retentionDays * 24 * 60 * 60 * 1000);
 
     await identity.save();
 
@@ -138,6 +143,26 @@ export async function POST(req: Request) {
       identityStatus: identity.status,
       identityDocumentId: identity._id,
     });
+
+    // Keep active booking references synchronized
+    try {
+      const Booking = (await import("@/models/Booking")).default;
+      await Booking.updateMany(
+        { touristId: userId, status: { $in: ["DRAFT", "PENDING_APPROVAL"] }, "customTripDetails.isCustomTrip": true },
+        {
+          "customTripDetails.identityVerification.status": identity.status,
+          "customTripDetails.identityVerification.version": identity.version,
+          $unset: {
+            "customTripDetails.identityVerification.reviewedBy": 1,
+            "customTripDetails.identityVerification.reviewedAt": 1,
+            "customTripDetails.identityVerification.reviewedVersion": 1,
+            "customTripDetails.identityVerification.rejectionReason": 1,
+          },
+        }
+      );
+    } catch (bookingSyncErr) {
+      console.error("[Identity Upload] Failed to sync booking identity snapshot:", bookingSyncErr);
+    }
 
     // Generate signed URLs for client preview
     const filesOutput: Record<string, any> = {};
@@ -160,6 +185,7 @@ export async function POST(req: Request) {
       message: `${fileKey} uploaded successfully.`,
       status: identity.status,
       documentType: identity.documentType,
+      version: identity.version,
       isComplete,
       files: filesOutput,
     });
@@ -168,3 +194,4 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: error.message || "Failed to upload identity document." }, { status: 500 });
   }
 }
+

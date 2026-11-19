@@ -3,6 +3,7 @@ import dbConnect from "@/lib/mongodb";
 import Booking from "@/models/Booking";
 import User from "@/models/User";
 import { sendNotification, notifyAdmins } from "@/lib/notifications";
+import { cleanupExpiredIdentityDocuments } from "@/lib/identityStorage";
 
 // In production, this should be triggered by a service like Vercel Cron, AWS EventBridge, or a simple external cron ping.
 // Secure it using a secret token configured in environment variables.
@@ -123,12 +124,28 @@ export async function GET(request: Request) {
       });
     }
 
+    // 4. Identity Document Retention Cleanup
+    // Safely purges expired identity documents after retention period
+    const retentionCleanup = await cleanupExpiredIdentityDocuments();
+    if (retentionCleanup.errors && retentionCleanup.errors.length > 0) {
+      console.error("[Cron Retention Cleanup Errors]:", retentionCleanup.errors);
+      await notifyAdmins({
+        type: "STALE_TRACKING",
+        title: "Identity Retention Cleanup Warning",
+        message: `Retention cleanup completed with ${retentionCleanup.errors.length} errors: ${retentionCleanup.errors.slice(0, 3).join("; ")}`,
+        link: "/admin",
+        deduplicationKey: `retention_cleanup_errors_${now.toISOString().split("T")[0]}`,
+      });
+    }
+
     return NextResponse.json({ 
       message: "Cron executed successfully",
       stats: {
         staleTrackingAlerts: staleBookings.length,
         upcomingTripReminders: upcomingBookings.length,
-        documentExpiryReminders: expiringDrivers.length
+        documentExpiryReminders: expiringDrivers.length,
+        identityDocumentsArchived: retentionCleanup.recordsArchived,
+        identityFilesDeleted: retentionCleanup.filesDeleted,
       }
     }, { status: 200 });
 
@@ -136,4 +153,8 @@ export async function GET(request: Request) {
     console.error("Cron execution error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
+}
+
+export async function POST(request: Request) {
+  return GET(request);
 }

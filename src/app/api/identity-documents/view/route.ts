@@ -3,8 +3,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import dbConnect from "@/lib/mongodb";
 import RiderIdentity from "@/models/RiderIdentity";
-import { verifySignedDocumentUrl } from "@/lib/identityStorage";
-import fs from "fs";
+import { verifySignedDocumentUrl, getDocumentBuffer } from "@/lib/identityStorage";
 
 export async function GET(req: Request) {
   try {
@@ -33,7 +32,7 @@ export async function GET(req: Request) {
     }
 
     // Determine authorization:
-    // 1. Signed URL authorization
+    // 1. Valid, unexpired HMAC signed URL authorization
     let isAuthorized = false;
     if (expires && sig) {
       if (verifySignedDocumentUrl(fileId, expires, sig)) {
@@ -41,7 +40,7 @@ export async function GET(req: Request) {
       }
     }
 
-    // 2. Active Session authorization (Owner or Admin)
+    // 2. Active Session authorization (Owner or Admin only)
     if (!isAuthorized) {
       const session = await getServerSession(authOptions);
       if (session && session.user) {
@@ -60,6 +59,14 @@ export async function GET(req: Request) {
       );
     }
 
+    // Verify document has not been purged or archived under retention policy
+    if (identity.isArchived) {
+      return NextResponse.json(
+        { error: "This document has expired and was removed under the data retention policy." },
+        { status: 404 }
+      );
+    }
+
     // Find the specific file metadata
     let targetFile: any = null;
     for (const key of ["front", "back", "photoPage"]) {
@@ -70,13 +77,27 @@ export async function GET(req: Request) {
       }
     }
 
-    if (!targetFile || !targetFile.storagePath || !fs.existsSync(targetFile.storagePath)) {
-      return NextResponse.json({ error: "Document file not found on disk." }, { status: 404 });
+    if (
+      !targetFile ||
+      !targetFile.storagePath ||
+      targetFile.storagePath === "[DELETED_BY_RETENTION_POLICY]"
+    ) {
+      return NextResponse.json(
+        { error: "Document file not found or has been deleted under the retention policy." },
+        { status: 404 }
+      );
     }
 
-    const fileBuffer = await fs.promises.readFile(targetFile.storagePath);
+    // Retrieve file buffer from durable storage (S3 or local disk)
+    const fileBuffer = await getDocumentBuffer(targetFile.storagePath);
+    if (!fileBuffer) {
+      return NextResponse.json(
+        { error: "Document file not found in storage." },
+        { status: 404 }
+      );
+    }
 
-    return new Response(fileBuffer, {
+    return new Response(new Uint8Array(fileBuffer), {
       status: 200,
       headers: {
         "Content-Type": targetFile.mimeType || "application/octet-stream",

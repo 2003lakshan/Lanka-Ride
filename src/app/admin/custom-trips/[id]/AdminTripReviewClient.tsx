@@ -56,6 +56,7 @@ export default function AdminTripReviewClient({ booking }: { booking: any }) {
           action,
           rejectionReason: reason,
           bookingId: booking._id,
+          expectedVersion: idVerification?.version,
         }),
       });
       const data = await res.json();
@@ -69,6 +70,10 @@ export default function AdminTripReviewClient({ booking }: { booking: any }) {
           setIdentityRejectionReason("");
         }
         setIdentityReviewMsg(`Identity document ${data.status.toLowerCase()} successfully!`);
+        router.refresh();
+      } else if (res.status === 409) {
+        alert(data.error || "The rider updated their document. Refreshing page to display the latest version.");
+        router.refresh();
       } else {
         alert(data.error || "Failed to update identity review status.");
       }
@@ -265,10 +270,17 @@ export default function AdminTripReviewClient({ booking }: { booking: any }) {
           {idVerification ? (
             <div className="space-y-4">
               <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-100">
-                <span className="text-xs font-bold uppercase text-slate-500">Document Type</span>
-                <span className="text-sm font-extrabold text-slate-900">
-                  {idVerification.documentType === "NATIONAL_ID" ? "National ID Card" : "Passport"}
-                </span>
+                <div>
+                  <span className="text-xs font-bold uppercase text-slate-500">Document Type</span>
+                  <div className="text-sm font-extrabold text-slate-900">
+                    {idVerification.documentType === "NATIONAL_ID" ? "National ID Card" : "Passport"}
+                  </div>
+                </div>
+                {idVerification.version && (
+                  <span className="text-[11px] font-bold text-slate-500 bg-slate-200/80 px-2.5 py-1 rounded-md">
+                    Version {idVerification.version}
+                  </span>
+                )}
               </div>
 
               {identityRejectionReason && (

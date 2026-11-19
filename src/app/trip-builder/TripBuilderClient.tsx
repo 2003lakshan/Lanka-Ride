@@ -1132,10 +1132,10 @@ export default function TripBuilderClient({
               <div className="p-4 bg-blue-50/60 border border-blue-100 rounded-xl space-y-2 text-xs text-slate-700 leading-relaxed">
                 <p className="font-semibold text-blue-900 flex items-center gap-1.5">
                   <ShieldCheck size={15} className="text-blue-600 shrink-0" />
-                  Official Identity Verification for Safe Travel
+                  Booking Contact & Identity Verification
                 </p>
                 <p>
-                  To comply with Sri Lankan tourist transport regulations and ensure secure passenger identification, a valid government-issued identity document is required for all custom bookings.
+                  We collect your identity document to verify the booking contact and support passenger safety.
                 </p>
                 <p className="text-[11px] text-slate-500">
                   🔒 <strong>Private & Protected:</strong> Your documents are stored in encrypted private storage, strictly restricted to you and authorized compliance personnel.
@@ -1195,7 +1195,7 @@ export default function TripBuilderClient({
                     className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 mt-0.5 cursor-pointer"
                   />
                   <span className="text-xs font-semibold text-slate-800 leading-normal">
-                    I acknowledge that this document is collected solely for booking identity verification and passenger safety in Sri Lanka, and confirm that the uploaded document is authentic and belongs to me. *
+                    I acknowledge that this document is collected to verify the booking contact and support passenger safety, and confirm that the uploaded document is authentic and belongs to me. *
                   </span>
                 </label>
               </div>

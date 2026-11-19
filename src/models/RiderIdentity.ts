@@ -14,6 +14,9 @@ export interface IRiderIdentity extends Document {
   documentType: "NATIONAL_ID" | "PASSPORT";
   status: "PENDING_REVIEW" | "APPROVED" | "REJECTED";
   acknowledgedPurpose: boolean;
+  version: number;
+  reviewedVersion?: number;
+  filesUpdatedAt?: Date;
   files: {
     front?: IIdentityFile;
     back?: IIdentityFile;
@@ -51,6 +54,9 @@ const RiderIdentitySchema = new Schema(
       index: true,
     },
     acknowledgedPurpose: { type: Boolean, default: false },
+    version: { type: Number, default: 1 },
+    reviewedVersion: { type: Number },
+    filesUpdatedAt: { type: Date, default: Date.now },
     files: {
       front: { type: IdentityFileSchema },
       back: { type: IdentityFileSchema },
@@ -67,3 +73,4 @@ const RiderIdentitySchema = new Schema(
 
 export default mongoose.models.RiderIdentity ||
   mongoose.model<IRiderIdentity>("RiderIdentity", RiderIdentitySchema);
+

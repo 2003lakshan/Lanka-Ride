@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import dbConnect from "@/lib/mongodb";
-import RiderIdentity from "@/models/RiderIdentity";
-import { deleteDocumentFile } from "@/lib/identityStorage";
+import { cleanupExpiredIdentityDocuments } from "@/lib/identityStorage";
 
 export async function POST(req: Request) {
   try {
@@ -18,35 +17,15 @@ export async function POST(req: Request) {
 
     await dbConnect();
 
-    const now = new Date();
-    const expiredRecords = await RiderIdentity.find({
-      retentionUntil: { $lte: now },
-      isArchived: { $ne: true },
-    });
-
-    let filesDeleted = 0;
-    let recordsArchived = 0;
-
-    for (const record of expiredRecords) {
-      for (const key of ["front", "back", "photoPage"]) {
-        const file = (record.files as any)?.[key];
-        if (file?.storagePath) {
-          const ok = await deleteDocumentFile(file.storagePath);
-          if (ok) filesDeleted++;
-          file.storagePath = "[DELETED_BY_RETENTION_POLICY]";
-        }
-      }
-      record.isArchived = true;
-      await record.save();
-      recordsArchived++;
-    }
+    const result = await cleanupExpiredIdentityDocuments();
 
     return NextResponse.json({
       success: true,
       message: `Identity document retention cleanup completed.`,
-      recordsArchived,
-      filesDeleted,
-      executedAt: now.toISOString(),
+      recordsArchived: result.recordsArchived,
+      filesDeleted: result.filesDeleted,
+      errors: result.errors,
+      executedAt: new Date().toISOString(),
     });
   } catch (error: any) {
     console.error("[Identity Retention Cleanup Error]:", error);

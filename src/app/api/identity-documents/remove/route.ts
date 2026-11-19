@@ -42,15 +42,38 @@ export async function POST(req: Request) {
         ? Boolean(identity.files?.front?.fileId && identity.files?.back?.fileId)
         : Boolean(identity.files?.photoPage?.fileId);
 
-    if (!isComplete && identity.status !== "REJECTED") {
-      identity.status = "PENDING_REVIEW";
-    }
+    // Increment version and reset approval upon file removal
+    identity.version = (identity.version || 0) + 1;
+    identity.filesUpdatedAt = new Date();
+    identity.status = "PENDING_REVIEW";
+    identity.reviewedBy = undefined;
+    identity.reviewedAt = undefined;
+    identity.reviewedVersion = undefined;
 
     await identity.save();
 
     await User.findByIdAndUpdate(userId, {
-      identityStatus: identity.status,
+      identityStatus: isComplete ? identity.status : "NOT_SUBMITTED",
     });
+
+    try {
+      const Booking = (await import("@/models/Booking")).default;
+      await Booking.updateMany(
+        { touristId: userId, status: { $in: ["DRAFT", "PENDING_APPROVAL"] }, "customTripDetails.isCustomTrip": true },
+        {
+          "customTripDetails.identityVerification.status": identity.status,
+          "customTripDetails.identityVerification.version": identity.version,
+          $unset: {
+            [`customTripDetails.identityVerification.files.${fileKey}`]: 1,
+            "customTripDetails.identityVerification.reviewedBy": 1,
+            "customTripDetails.identityVerification.reviewedAt": 1,
+            "customTripDetails.identityVerification.reviewedVersion": 1,
+          },
+        }
+      );
+    } catch (bookingSyncErr) {
+      console.error("[Identity Remove] Failed to sync booking identity snapshot:", bookingSyncErr);
+    }
 
     const filesOutput: Record<string, any> = {};
     for (const key of ["front", "back", "photoPage"]) {
@@ -72,6 +95,7 @@ export async function POST(req: Request) {
       message: `File ${fileKey} removed successfully.`,
       status: identity.status,
       documentType: identity.documentType,
+      version: identity.version,
       isComplete,
       files: filesOutput,
     });
@@ -80,3 +104,4 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: error.message || "Failed to remove identity document." }, { status: 500 });
   }
 }
+
