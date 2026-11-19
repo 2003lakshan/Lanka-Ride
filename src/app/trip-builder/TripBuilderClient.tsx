@@ -105,16 +105,7 @@ export default function TripBuilderClient({
     return null;
   });
 
-  const [verifiedPhoneValue, setVerifiedPhoneValue] = useState<string | null>(() => {
-    if (existingContact?.phone) return existingContact.phone.trim();
-    if (currentUserProfile?.isPhoneVerified && currentUserProfile.phoneNumber) {
-      return currentUserProfile.phoneNumber.trim();
-    }
-    return null;
-  });
-
   const [emailVerificationToken, setEmailVerificationToken] = useState<string | null>(null);
-  const [phoneVerificationToken, setPhoneVerificationToken] = useState<string | null>(null);
 
   // Booking for someone else state
   const [isBookingForSomeoneElse, setIsBookingForSomeoneElse] = useState<boolean>(
@@ -133,18 +124,11 @@ export default function TripBuilderClient({
   );
 
   // Dynamic verification binding check:
-  // If the rider edits the verified email or phone, isEmailVerified / isPhoneVerified flips to false immediately!
+  // If the rider edits the verified email, isEmailVerified flips to false immediately!
   const isEmailVerified = useMemo(() => {
     if (!verifiedEmailValue || !contactEmail.trim()) return false;
     return verifiedEmailValue.toLowerCase().trim() === contactEmail.toLowerCase().trim();
   }, [verifiedEmailValue, contactEmail]);
-
-  const isPhoneVerified = useMemo(() => {
-    if (!verifiedPhoneValue || !contactPhone.trim()) return false;
-    const cleanCurrent = contactPhone.replace(/[^\d+]/g, "");
-    const cleanVerified = verifiedPhoneValue.replace(/[^\d+]/g, "");
-    return cleanCurrent === cleanVerified && cleanCurrent.length >= 7;
-  }, [verifiedPhoneValue, contactPhone]);
 
   // Email verification action UI states
   const [emailOtpSent, setEmailOtpSent] = useState(false);
@@ -156,28 +140,12 @@ export default function TripBuilderClient({
   const [emailSuccessMsg, setEmailSuccessMsg] = useState("");
   const [emailDevMockCode, setEmailDevMockCode] = useState<string | null>(null);
 
-  // Phone verification action UI states
-  const [phoneOtpSent, setPhoneOtpSent] = useState(false);
-  const [phoneOtpInput, setPhoneOtpInput] = useState("");
-  const [phoneSending, setPhoneSending] = useState(false);
-  const [phoneVerifying, setPhoneVerifying] = useState(false);
-  const [phoneCooldown, setPhoneCooldown] = useState(0);
-  const [phoneError, setPhoneError] = useState("");
-  const [phoneSuccessMsg, setPhoneSuccessMsg] = useState("");
-  const [phoneDevMockCode, setPhoneDevMockCode] = useState<string | null>(null);
-
-  // Countdown timers for resend cooldowns
+  // Countdown timer for email resend cooldown
   useEffect(() => {
     if (emailCooldown <= 0) return;
     const t = setInterval(() => setEmailCooldown((c) => Math.max(0, c - 1)), 1000);
     return () => clearInterval(t);
   }, [emailCooldown]);
-
-  useEffect(() => {
-    if (phoneCooldown <= 0) return;
-    const t = setInterval(() => setPhoneCooldown((c) => Math.max(0, c - 1)), 1000);
-    return () => clearInterval(t);
-  }, [phoneCooldown]);
 
   // =========================================================
   // STEP 2: Basics
@@ -412,83 +380,6 @@ export default function TripBuilderClient({
     }
   };
 
-  const handleSendPhoneOtp = async () => {
-    setPhoneError("");
-    setPhoneSuccessMsg("");
-    setPhoneDevMockCode(null);
-
-    const cleanPhone = contactPhone.trim().replace(/[^\d+]/g, "");
-    if (!cleanPhone || cleanPhone.replace(/\D/g, "").length < 7) {
-      setPhoneError("Please enter a valid mobile number with country code.");
-      return;
-    }
-
-    setPhoneSending(true);
-    try {
-      const res = await fetch("/api/verification/send-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "PHONE", target: cleanPhone }),
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (res.ok) {
-        setPhoneOtpSent(true);
-        setPhoneCooldown(data.cooldownSeconds || 60);
-        setPhoneSuccessMsg(data.message || "Verification code sent to your mobile.");
-        if (data.isDevMock && data.devCode) {
-          setPhoneDevMockCode(data.devCode);
-        }
-      } else {
-        setPhoneError(data.error || "Failed to dispatch verification SMS.");
-        if (data.cooldownSeconds) {
-          setPhoneCooldown(data.cooldownSeconds);
-        }
-      }
-    } catch {
-      setPhoneError("Network error while sending verification SMS.");
-    } finally {
-      setPhoneSending(false);
-    }
-  };
-
-  const handleVerifyPhoneOtp = async () => {
-    setPhoneError("");
-    setPhoneSuccessMsg("");
-
-    const cleanPhone = contactPhone.trim().replace(/[^\d+]/g, "");
-    const cleanCode = phoneOtpInput.trim();
-    if (!/^\d{6}$/.test(cleanCode)) {
-      setPhoneError("Please enter the 6-digit OTP code.");
-      return;
-    }
-
-    setPhoneVerifying(true);
-    try {
-      const res = await fetch("/api/verification/verify-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "PHONE", target: cleanPhone, code: cleanCode }),
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && data.verified) {
-        setVerifiedPhoneValue(cleanPhone);
-        setPhoneVerificationToken(data.verificationToken);
-        setPhoneOtpSent(false);
-        setPhoneOtpInput("");
-        setPhoneSuccessMsg("Mobile number verified successfully!");
-        setPhoneDevMockCode(null);
-      } else {
-        setPhoneError(data.error || "Invalid verification code.");
-      }
-    } catch {
-      setPhoneError("Network error while verifying mobile code.");
-    } finally {
-      setPhoneVerifying(false);
-    }
-  };
-
   // =========================================================
   // Itinerary Handlers
   // =========================================================
@@ -550,15 +441,12 @@ export default function TripBuilderClient({
     if (!contactPhone.trim() || contactPhone.replace(/\D/g, "").length < 7) {
       return "Please enter a valid mobile number with country code.";
     }
-    if (!isPhoneVerified) {
-      return "Please verify your mobile number with OTP to continue.";
-    }
     if (isBookingForSomeoneElse) {
       if (!passengerFullName.trim()) {
         return "Please enter the travelling passenger's full name.";
       }
       if (!passengerPhone.trim() || passengerPhone.replace(/\D/g, "").length < 7) {
-        return "Please enter the travelling passenger's mobile number.";
+        return "Please enter the travelling passenger's mobile number with country code.";
       }
     }
     if (!confirmedAccuracy) {
@@ -632,7 +520,6 @@ export default function TripBuilderClient({
             : undefined,
           confirmedAccuracy,
           emailVerificationToken,
-          phoneVerificationToken,
         },
         basics: {
           startDate,
@@ -695,8 +582,9 @@ export default function TripBuilderClient({
     contactFullName.trim() &&
     contactCountry.trim() &&
     isEmailVerified &&
-    isPhoneVerified &&
-    (!isBookingForSomeoneElse || (passengerFullName.trim() && passengerPhone.trim())) &&
+    contactPhone.trim() &&
+    contactPhone.replace(/\D/g, "").length >= 7 &&
+    (!isBookingForSomeoneElse || (passengerFullName.trim() && passengerPhone.trim() && passengerPhone.replace(/\D/g, "").length >= 7)) &&
     confirmedAccuracy
   );
 
@@ -919,128 +807,19 @@ export default function TripBuilderClient({
                   )}
                 </div>
 
-                {/* Mobile Number with Country Code & OTP Verification */}
-                <div className="md:col-span-2 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                      Mobile Number *
-                    </label>
-                    <div>
-                      {isPhoneVerified ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          <CheckCircle2 size={13} />
-                          Verified
-                        </span>
-                      ) : verifiedPhoneValue && contactPhone.replace(/[^\d+]/g, '') !== verifiedPhoneValue.replace(/[^\d+]/g, '') ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-extrabold bg-amber-50 text-amber-800 border border-amber-200">
-                          <AlertCircle size={13} />
-                          Mobile Changed • Verify New Number
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-extrabold bg-slate-100 text-slate-600 border border-slate-200">
-                          Unverified
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                    <div className="flex-1">
-                      <PhoneInputWithCountry
-                        value={contactPhone}
-                        onChange={(val) => {
-                          setContactPhone(val);
-                          setPhoneOtpSent(false);
-                          setPhoneError("");
-                          setPhoneSuccessMsg("");
-                        }}
-                        placeholder="77 123 4567"
-                      />
-                    </div>
-
-                    {!isPhoneVerified && (
-                      <button
-                        type="button"
-                        disabled={phoneSending || phoneCooldown > 0 || !contactPhone.trim()}
-                        onClick={handleSendPhoneOtp}
-                        className={`px-5 py-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                          phoneCooldown > 0
-                            ? "bg-slate-100 text-slate-500 cursor-not-allowed"
-                            : "bg-blue-600 hover:bg-blue-700 text-white shadow-xs active:scale-95"
-                        } disabled:opacity-60 disabled:cursor-not-allowed shrink-0`}
-                      >
-                        {phoneSending ? (
-                          <>
-                            <RefreshCw size={14} className="animate-spin" />
-                            <span>Sending...</span>
-                          </>
-                        ) : phoneCooldown > 0 ? (
-                          <span>Resend in {phoneCooldown}s</span>
-                        ) : phoneOtpSent ? (
-                          <span>Resend OTP</span>
-                        ) : (
-                          <>
-                            <Phone size={14} />
-                            <span>Send OTP</span>
-                          </>
-                        )}
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Dev Mock Banner for Phone */}
-                  {phoneDevMockCode && (
-                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Sparkles size={15} className="text-amber-600 shrink-0" />
-                        <span>
-                          <strong>[DEV MOCK MODE]</strong> Mobile SMS OTP:{" "}
-                          <code className="bg-white px-2 py-0.5 rounded font-mono font-bold text-amber-700 border border-amber-300">
-                            {phoneDevMockCode}
-                          </code>
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setPhoneOtpInput(phoneDevMockCode)}
-                        className="text-xs text-blue-600 hover:underline font-bold"
-                      >
-                        Auto-fill
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Phone Feedback Messages */}
-                  {phoneError && <p className="text-xs font-semibold text-red-600 flex items-center gap-1"><AlertCircle size={13} /> {phoneError}</p>}
-                  {phoneSuccessMsg && <p className="text-xs font-semibold text-emerald-600 flex items-center gap-1"><CheckCircle2 size={13} /> {phoneSuccessMsg}</p>}
-
-                  {/* Phone OTP Code Input Box */}
-                  {phoneOtpSent && !isPhoneVerified && (
-                    <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-4 space-y-3 animate-in fade-in duration-200">
-                      <p className="text-xs font-medium text-slate-700">
-                        Enter the 6-digit SMS verification code sent to <strong>{contactPhone}</strong>:
-                      </p>
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="text"
-                          maxLength={6}
-                          value={phoneOtpInput}
-                          onChange={(e) => setPhoneOtpInput(e.target.value.replace(/\D/g, ""))}
-                          placeholder="123456"
-                          className="w-40 tracking-widest text-center text-lg font-mono font-bold py-2 px-3 bg-white border border-blue-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
-                        />
-                        <button
-                          type="button"
-                          disabled={phoneVerifying || phoneOtpInput.length !== 6}
-                          onClick={handleVerifyPhoneOtp}
-                          className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
-                        >
-                          {phoneVerifying ? <RefreshCw size={13} className="animate-spin" /> : <Check size={14} />}
-                          <span>Verify</span>
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                {/* Mobile Number with Country Code */}
+                <div className="md:col-span-2 space-y-2">
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    Mobile Number *
+                  </label>
+                  <p className="text-xs text-slate-500">
+                    Used for driver communications and pickup coordination during your stay.
+                  </p>
+                  <PhoneInputWithCountry
+                    value={contactPhone}
+                    onChange={(val) => setContactPhone(val)}
+                    placeholder="77 123 4567"
+                  />
                 </div>
               </div>
             </div>
@@ -1630,9 +1409,9 @@ export default function TripBuilderClient({
                 </div>
 
                 <div>
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Verified Mobile</p>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Contact Mobile</p>
                   <p className="font-medium text-slate-900 flex items-center gap-1.5">
-                    <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
+                    <Phone size={14} className="text-slate-400 shrink-0" />
                     <span>{contactPhone}</span>
                   </p>
                 </div>

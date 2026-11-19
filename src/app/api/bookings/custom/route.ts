@@ -76,23 +76,6 @@ export async function POST(req: Request) {
           { status: 400 }
         );
       }
-
-      // Verify phone status on server
-      const cleanPhone = phone.trim().replace(/[^\d+]/g, "");
-      const hasVerifiedPhoneDoc = await ContactVerification.findOne({
-        userId: user._id,
-        type: "PHONE",
-        target: cleanPhone,
-        verifiedAt: { $exists: true, $ne: null },
-      });
-      const isPhoneAccountVerified = user.phoneNumber && user.phoneNumber.replace(/[^\d+]/g, "") === cleanPhone && user.isPhoneVerified;
-
-      if (!hasVerifiedPhoneDoc && !isPhoneAccountVerified) {
-        return NextResponse.json(
-          { error: `The mobile number "${phone}" has not been verified. Please complete mobile verification.` },
-          { status: 400 }
-        );
-      }
     }
 
     let booking;

@@ -23,12 +23,12 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => ({}));
     const { type, target, code } = body;
 
-    if (!type || (type !== "EMAIL" && type !== "PHONE")) {
-      return NextResponse.json({ error: "Verification type must be EMAIL or PHONE." }, { status: 400 });
+    if (!type || type !== "EMAIL") {
+      return NextResponse.json({ error: "Only email verification is supported." }, { status: 400 });
     }
 
     if (!target || typeof target !== "string") {
-      return NextResponse.json({ error: "Contact destination is required." }, { status: 400 });
+      return NextResponse.json({ error: "Email address is required." }, { status: 400 });
     }
 
     if (!code || typeof code !== "string") {
@@ -40,24 +40,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Verification code must be exactly 6 digits." }, { status: 400 });
     }
 
-    let cleanTarget = "";
-    if (type === "EMAIL") {
-      cleanTarget = target.toLowerCase().trim();
-    } else {
-      cleanTarget = target.trim().replace(/[^\d+]/g, "");
-    }
+    const cleanTarget = target.toLowerCase().trim();
 
     await dbConnect();
 
     const record = await ContactVerification.findOne({
       userId,
-      type,
+      type: "EMAIL",
       target: cleanTarget,
     });
 
     if (!record || !record.otpHash) {
       return NextResponse.json(
-        { error: "No pending verification found for this contact. Please request a new code." },
+        { error: "No pending verification found for this email. Please request a new code." },
         { status: 400 }
       );
     }
@@ -85,7 +80,7 @@ export async function POST(req: Request) {
     const secret = process.env.NEXTAUTH_SECRET || "local_development_secret_do_not_use_in_prod";
     const expectedHash = crypto
       .createHmac("sha256", secret)
-      .update(`${userId}:${type}:${cleanTarget}:${cleanCode}`)
+      .update(`${userId}:EMAIL:${cleanTarget}:${cleanCode}`)
       .digest("hex");
 
     const isMatch =
@@ -118,36 +113,24 @@ export async function POST(req: Request) {
     record.consumed = false;
     await record.save();
 
-    // Update user profile if the verified contact is their registered contact
+    // Update user profile if the verified email matches their account email
     const user = await User.findById(userId);
-    if (user) {
-      if (type === "EMAIL" && user.email && user.email.toLowerCase().trim() === cleanTarget) {
-        user.isEmailVerified = true;
-        user.emailVerifiedAt = new Date(now);
-        await user.save();
-      } else if (type === "PHONE") {
-        if (!user.phoneNumber || user.phoneNumber.replace(/[^\d+]/g, "") === cleanTarget) {
-          user.isPhoneVerified = true;
-          user.phoneVerifiedAt = new Date(now);
-          if (!user.phoneNumber) {
-            user.phoneNumber = cleanTarget;
-          }
-          await user.save();
-        }
-      }
+    if (user && user.email && user.email.toLowerCase().trim() === cleanTarget) {
+      user.isEmailVerified = true;
+      user.emailVerifiedAt = new Date(now);
+      await user.save();
     }
 
     return NextResponse.json({
       success: true,
       verified: true,
       verificationToken,
-      type,
+      type: "EMAIL",
       target: cleanTarget,
-      message: `${type === "EMAIL" ? "Email" : "Mobile number"} verified successfully!`,
+      message: "Email verified successfully!",
     });
   } catch (error: any) {
     console.error("[Verify OTP Error]:", error);
     return NextResponse.json({ error: error.message || "Internal server error while verifying OTP." }, { status: 500 });
   }
 }
-

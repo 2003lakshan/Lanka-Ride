@@ -7,7 +7,7 @@ import crypto from "crypto";
 
 async function runTests() {
   console.log("=================================================");
-  console.log("🧪 STARTING CONTACT VERIFICATION & CUSTOM TRIP TESTS");
+  console.log("🧪 STARTING EMAIL VERIFICATION & PHONE COLLECTION TESTS");
   console.log("=================================================");
 
   const { default: dbConnect } = await import("../src/lib/mongodb");
@@ -15,18 +15,17 @@ async function runTests() {
   const { default: ContactVerification } = await import("../src/models/ContactVerification");
   const { default: Booking } = await import("../src/models/Booking");
   const { default: VehicleType } = await import("../src/models/VehicleType");
-  const { sendPhoneVerificationOtpSms, isSmsConfigured } = await import("../src/lib/sms");
   const { sendContactVerificationOtpEmail, isEmailConfigured } = await import("../src/lib/email");
 
   await dbConnect();
 
   // Clean previous test data
-  const testEmail = "test_rider_verification@example.com";
+  const testEmail = "test_rider_email_verify@example.com";
   const testPhone = "+94771239999";
   await User.deleteMany({ email: testEmail });
   await ContactVerification.deleteMany({ target: { $in: [testEmail, testPhone] } });
 
-  // 1. Create Test Tourist User
+  // 1. Create Test Tourist User (unverified email, unverified phone)
   const user = await User.create({
     name: "Test Rider",
     email: testEmail,
@@ -38,12 +37,11 @@ async function runTests() {
   });
   console.log("✅ Created test rider:", user._id.toString());
 
-  // 2. Check SMS / Email provider configuration status
+  // 2. Check Email provider configuration status
   console.log("\n--- Provider Configurations ---");
   console.log("Email SMTP Configured:", isEmailConfigured());
-  console.log("SMS Gateway Configured:", isSmsConfigured());
 
-  // 3. Test OTP Generation and Delivery (Dev Mock / Real)
+  // 3. Test Email OTP Generation and Delivery
   console.log("\n--- Test 1: Email OTP Dispatch ---");
   const emailOtp = "123456";
   const emailResult = await sendContactVerificationOtpEmail(testEmail, emailOtp);
@@ -57,21 +55,8 @@ async function runTests() {
   }
   console.log("✅ Email dispatch test passed.");
 
-  console.log("\n--- Test 2: Phone SMS OTP Dispatch ---");
-  const phoneOtp = "654321";
-  const phoneResult = await sendPhoneVerificationOtpSms(testPhone, phoneOtp);
-  console.log("SMS Dispatch Result:", {
-    success: phoneResult.success,
-    isDevMock: phoneResult.isDevMock,
-    provider: phoneResult.provider,
-  });
-  if (!phoneResult.success && !phoneResult.isDevMock) {
-    throw new Error("SMS dispatch failed unexpectedly: " + phoneResult.error);
-  }
-  console.log("✅ SMS dispatch test passed.");
-
-  // 4. Test ContactVerification DB Record & HMAC Hashing
-  console.log("\n--- Test 3: OTP Hash & Cooldown in DB ---");
+  // 4. Test Email OTP Hash & Cooldown in DB
+  console.log("\n--- Test 2: Email OTP Hash & Cooldown in DB ---");
   const secret = process.env.NEXTAUTH_SECRET || "local_development_secret_do_not_use_in_prod";
   const emailHash = crypto
     .createHmac("sha256", secret)
@@ -97,7 +82,7 @@ async function runTests() {
   console.log("✅ Cooldown enforcement check passed.");
 
   // 5. Test Invalid Code Rejection & Attempt Counter
-  console.log("\n--- Test 4: Invalid Code Handling & Attempt Limits ---");
+  console.log("\n--- Test 3: Invalid Email Code Handling & Attempt Limits ---");
   const wrongCode = "999999";
   const wrongHash = crypto
     .createHmac("sha256", secret)
@@ -114,8 +99,8 @@ async function runTests() {
   console.log("Attempt incremented to:", emailRecord.attempts, "(Remaining: " + (5 - emailRecord.attempts) + ")");
   console.log("✅ Invalid code rejection and attempt counting verified.");
 
-  // 6. Test Valid Code Verification
-  console.log("\n--- Test 5: Valid Code Verification ---");
+  // 6. Test Valid Email Code Verification
+  console.log("\n--- Test 4: Valid Email Code Verification & User Profile Update ---");
   const matchCorrect = crypto.timingSafeEqual(Buffer.from(emailRecord.otpHash), Buffer.from(emailHash));
   if (!matchCorrect) throw new Error("Correct code should match");
 
@@ -129,47 +114,55 @@ async function runTests() {
   await user.save();
   console.log("✅ Email successfully marked verified for user and token generated.");
 
-  // Also verify phone
-  const phoneHash = crypto
-    .createHmac("sha256", secret)
-    .update(`${user._id.toString()}:PHONE:${testPhone}:${phoneOtp}`)
-    .digest("hex");
+  // 7. Test Server Rejection when Email is Unverified or Changed
+  console.log("\n--- Test 5: Server Rejection on Unverified Email ---");
+  const unverifiedEmail = "unverified_new_email@example.com";
 
-  const phoneRecord = await ContactVerification.create({
-    userId: user._id,
-    type: "PHONE",
-    target: testPhone,
-    otpHash: phoneHash,
-    expiresAt: new Date(Date.now() + 10 * 60 * 1000),
-    attempts: 0,
-    lastSentAt: new Date(),
-    verifiedAt: new Date(),
-    verificationToken: crypto.randomBytes(32).toString("hex"),
-  });
-  user.isPhoneVerified = true;
-  user.phoneVerifiedAt = new Date();
-  await user.save();
-  console.log("✅ Phone successfully marked verified for user.");
-
-  // 7. Test Server-side submission with changed/unverified contact
-  console.log("\n--- Test 6: Server Rejection on Unverified/Changed Contact ---");
-  const changedEmail = "changed_unverified@example.com";
-
-  // Simulate server check from /api/bookings/custom
+  // Simulate server check from /api/bookings/custom for email
   const checkEmailDoc = await ContactVerification.findOne({
     userId: user._id,
     type: "EMAIL",
-    target: changedEmail,
+    target: unverifiedEmail,
     verifiedAt: { $exists: true, $ne: null },
   });
-  const isEmailAccountMatch = user.email === changedEmail && user.isEmailVerified;
+  const isEmailAccountMatch = user.email === unverifiedEmail && user.isEmailVerified;
   const isEmailAllowed = Boolean(checkEmailDoc || isEmailAccountMatch);
-  console.log("Changed email allowed expected false:", isEmailAllowed);
-  if (isEmailAllowed) throw new Error("Changed unverified email should be rejected by server");
-  console.log("✅ Server correctly rejects changed/unverified contact details.");
+  console.log("Unverified email allowed expected false:", isEmailAllowed);
+  if (isEmailAllowed) throw new Error("Unverified email should be rejected by server");
+  console.log("✅ Server correctly blocks custom trip submission when email is unverified.");
 
-  // 8. Test Successful Custom Trip Submission with Verified Contact Snapshot
-  console.log("\n--- Test 7: Successful Custom Trip Submission with Booking Contact ---");
+  // 8. Test Server Acceptance with Verified Email and UNVERIFIED Changed Phone
+  console.log("\n--- Test 6: Server Acceptance with Verified Email and UNVERIFIED Phone ---");
+  const changedUnverifiedPhone = "+94719876543"; // Changed phone with NO OTP verification
+
+  // Verify server-side validation rules in /api/bookings/custom:
+  // Email must be verified
+  const verifiedEmailDoc = await ContactVerification.findOne({
+    userId: user._id,
+    type: "EMAIL",
+    target: testEmail,
+    verifiedAt: { $exists: true, $ne: null },
+  });
+  const isEmailValid = Boolean(verifiedEmailDoc || (user.email === testEmail && user.isEmailVerified));
+  if (!isEmailValid) throw new Error("Email should be recognized as verified");
+
+  // Phone requires only valid format (at least 7 digits), NO OTP verification
+  const phoneDigits = changedUnverifiedPhone.replace(/\D/g, "");
+  const isPhoneFormatValid = phoneDigits.length >= 7;
+  if (!isPhoneFormatValid) throw new Error("Phone format should be valid");
+
+  // Check that NO phone verification record exists
+  const hasPhoneVerificationRecord = await ContactVerification.findOne({
+    userId: user._id,
+    target: changedUnverifiedPhone.replace(/[^\d+]/g, ""),
+  });
+  console.log("Phone verification record exists (expected null):", hasPhoneVerificationRecord);
+  if (hasPhoneVerificationRecord) throw new Error("Phone should NOT have a verification record");
+
+  console.log("✅ Confirmed: Rider can proceed with changed unverified phone number without mobile OTP.");
+
+  // 9. Test Successful Custom Trip Creation with Unverified Phone & Snapshot
+  console.log("\n--- Test 7: Successful Custom Trip Creation & Compatibility ---");
   let vehicle = await VehicleType.findOne({ isActive: true });
   if (!vehicle) {
     vehicle = await VehicleType.create({
@@ -202,7 +195,7 @@ async function runTests() {
       country: "United Kingdom",
       email: testEmail,
       whatsappNumber: "+447911123456",
-      alternativePhoneNumber: testPhone,
+      alternativePhoneNumber: changedUnverifiedPhone,
       adults: 2,
       children: 0,
       luggage: 2,
@@ -221,7 +214,7 @@ async function runTests() {
         fullName: "Test Rider (Booking Contact)",
         country: "Sri Lanka",
         email: testEmail,
-        phone: testPhone,
+        phone: changedUnverifiedPhone,
         isBookingForSomeoneElse: true,
         passenger: {
           fullName: "Travelling Guest",
@@ -242,7 +235,7 @@ async function runTests() {
     },
   });
 
-  console.log("✅ Custom trip created with bookingContact snapshot:", customBooking._id.toString());
+  console.log("✅ Custom trip created successfully with unverified contact phone:", customBooking._id.toString());
   console.log("Booking Snapshot:", {
     bookingReference: customBooking.bookingReference,
     bookingContact: customBooking.customTripDetails?.bookingContact,
@@ -253,13 +246,40 @@ async function runTests() {
     },
   });
 
-  // Clean up test booking & user
-  await Booking.deleteOne({ _id: customBooking._id });
+  // 10. Check Compatibility with Existing Bookings without bookingContact
+  console.log("\n--- Test 8: Compatibility with Existing Legacy Bookings ---");
+  const legacyBooking = await Booking.create({
+    bookingReference: "LEGACY-" + Math.random().toString(36).substring(2, 6).toUpperCase(),
+    touristId: user._id,
+    status: "CONFIRMED",
+    pickupAddress: "Colombo 03",
+    destinationAddress: "BIA Airport",
+    passengerDetails: {
+      fullName: "Legacy Traveler",
+      nationality: "Sri Lanka",
+      country: "Sri Lanka",
+      email: "legacy@example.com",
+      whatsappNumber: "+94770000000",
+      adults: 1,
+      children: 0,
+      luggage: 1,
+      childSeatRequired: false,
+      meetAndGreetRequired: false,
+    },
+    customTripDetails: {
+      isCustomTrip: true,
+      budget: 100,
+    },
+  });
+  console.log("Legacy booking without bookingContact created & read successfully:", legacyBooking.bookingReference);
+
+  // Clean up test data
+  await Booking.deleteMany({ _id: { $in: [customBooking._id, legacyBooking._id] } });
   await User.deleteOne({ _id: user._id });
   await ContactVerification.deleteMany({ userId: user._id });
 
   console.log("\n=================================================");
-  console.log("🎉 ALL TESTS COMPLETED SUCCESSFULLY (7/7)");
+  console.log("🎉 ALL TESTS COMPLETED SUCCESSFULLY (8/8)");
   console.log("=================================================");
   process.exit(0);
 }

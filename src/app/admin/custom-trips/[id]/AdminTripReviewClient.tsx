@@ -148,7 +148,7 @@ export default function AdminTripReviewClient({ booking }: { booking: any }) {
               <div><span className="text-slate-500">Name:</span> <span className="font-bold text-slate-900">{booking.customTripDetails?.bookingContact?.fullName || booking.passengerDetails?.fullName || "N/A"}</span></div>
               <div><span className="text-slate-500">Country:</span> <span className="font-medium text-slate-900">{booking.customTripDetails?.bookingContact?.country || booking.passengerDetails?.country || "N/A"}</span></div>
               <div><span className="text-slate-500">Verified Email:</span> <span className="font-medium text-slate-900">{booking.customTripDetails?.bookingContact?.email || booking.passengerDetails?.email || "N/A"}</span></div>
-              <div><span className="text-slate-500">Verified Phone:</span> <span className="font-medium text-slate-900">{booking.customTripDetails?.bookingContact?.phone || booking.passengerDetails?.whatsappNumber || "N/A"}</span></div>
+              <div><span className="text-slate-500">Contact Phone:</span> <span className="font-medium text-slate-900">{booking.customTripDetails?.bookingContact?.phone || booking.passengerDetails?.whatsappNumber || "N/A"}</span></div>
             </div>
 
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2">

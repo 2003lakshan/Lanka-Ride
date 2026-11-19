@@ -5,7 +5,6 @@ import crypto from "crypto";
 import dbConnect from "@/lib/mongodb";
 import ContactVerification from "@/models/ContactVerification";
 import { sendContactVerificationOtpEmail } from "@/lib/email";
-import { sendPhoneVerificationOtpSms } from "@/lib/sms";
 
 const ipRateLimits = new Map<string, { count: number; resetAt: number }>();
 const MAX_IP_ATTEMPTS = 20;
@@ -28,12 +27,12 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => ({}));
     const { type, target } = body;
 
-    if (!type || (type !== "EMAIL" && type !== "PHONE")) {
-      return NextResponse.json({ error: "Verification type must be EMAIL or PHONE." }, { status: 400 });
+    if (!type || type !== "EMAIL") {
+      return NextResponse.json({ error: "Only email verification is supported." }, { status: 400 });
     }
 
     if (!target || typeof target !== "string") {
-      return NextResponse.json({ error: "Valid contact destination is required." }, { status: 400 });
+      return NextResponse.json({ error: "Valid email address is required." }, { status: 400 });
     }
 
     // IP Rate Limiting
@@ -54,18 +53,9 @@ export async function POST(req: Request) {
     }
 
     // Normalize and validate target
-    let cleanTarget = "";
-    if (type === "EMAIL") {
-      cleanTarget = target.toLowerCase().trim();
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanTarget)) {
-        return NextResponse.json({ error: "Please enter a valid email address." }, { status: 400 });
-      }
-    } else {
-      cleanTarget = target.trim().replace(/[^\d+]/g, "");
-      const digitsOnly = cleanTarget.replace(/\D/g, "");
-      if (digitsOnly.length < 7 || digitsOnly.length > 15) {
-        return NextResponse.json({ error: "Please enter a valid mobile number with country code." }, { status: 400 });
-      }
+    const cleanTarget = target.toLowerCase().trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanTarget)) {
+      return NextResponse.json({ error: "Please enter a valid email address." }, { status: 400 });
     }
 
     await dbConnect();
@@ -73,7 +63,7 @@ export async function POST(req: Request) {
     // Check resend cooldown for this user and target
     const existing = await ContactVerification.findOne({
       userId,
-      type,
+      type: "EMAIL",
       target: cleanTarget,
     });
 
@@ -98,7 +88,7 @@ export async function POST(req: Request) {
     const secret = process.env.NEXTAUTH_SECRET || "local_development_secret_do_not_use_in_prod";
     const otpHash = crypto
       .createHmac("sha256", secret)
-      .update(`${userId}:${type}:${cleanTarget}:${otpCode}`)
+      .update(`${userId}:EMAIL:${cleanTarget}:${otpCode}`)
       .digest("hex");
 
     const expiresAt = new Date(now + OTP_EXPIRY_MS);
@@ -117,7 +107,7 @@ export async function POST(req: Request) {
     } else {
       await ContactVerification.create({
         userId,
-        type,
+        type: "EMAIL",
         target: cleanTarget,
         otpHash,
         expiresAt,
@@ -128,47 +118,26 @@ export async function POST(req: Request) {
       });
     }
 
-    // Dispatch OTP via Email or SMS
-    if (type === "EMAIL") {
-      const emailResult = await sendContactVerificationOtpEmail(cleanTarget, otpCode);
-      if (!emailResult.success) {
-        return NextResponse.json(
-          { error: emailResult.error || "Failed to dispatch verification email.", isConfigured: false },
-          { status: 500 }
-        );
-      }
-
-      return NextResponse.json({
-        success: true,
-        message: "Verification code sent to your email.",
-        cooldownSeconds: 60,
-        type: "EMAIL",
-        target: cleanTarget,
-        isDevMock: Boolean(emailResult.isDevMock),
-        devCode: emailResult.devCode,
-      });
-    } else {
-      const smsResult = await sendPhoneVerificationOtpSms(cleanTarget, otpCode);
-      if (!smsResult.success) {
-        return NextResponse.json(
-          { error: smsResult.error || "Failed to dispatch verification SMS.", isConfigured: smsResult.isConfigured !== false },
-          { status: 500 }
-        );
-      }
-
-      return NextResponse.json({
-        success: true,
-        message: "Verification code sent to your mobile number.",
-        cooldownSeconds: 60,
-        type: "PHONE",
-        target: cleanTarget,
-        isDevMock: Boolean(smsResult.isDevMock),
-        devCode: smsResult.devCode,
-      });
+    // Dispatch OTP via Email
+    const emailResult = await sendContactVerificationOtpEmail(cleanTarget, otpCode);
+    if (!emailResult.success) {
+      return NextResponse.json(
+        { error: emailResult.error || "Failed to dispatch verification email.", isConfigured: false },
+        { status: 500 }
+      );
     }
+
+    return NextResponse.json({
+      success: true,
+      message: "Verification code sent to your email.",
+      cooldownSeconds: 60,
+      type: "EMAIL",
+      target: cleanTarget,
+      isDevMock: Boolean(emailResult.isDevMock),
+      devCode: emailResult.devCode,
+    });
   } catch (error: any) {
     console.error("[Send OTP Error]:", error);
     return NextResponse.json({ error: error.message || "Internal server error while sending OTP." }, { status: 500 });
   }
 }
-
