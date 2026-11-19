@@ -143,12 +143,36 @@ export async function POST(req: Request) {
     if (bookingId) {
       booking = await Booking.findOne({ _id: bookingId, touristId: user._id });
       if (!booking) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+
+      // Guard: Do not allow ordinary edits to silently remove an accepted driver assignment or modify ongoing/completed trips
+      const isAssignedOrOngoing = Boolean(
+        booking.driverId ||
+        [
+          "DRIVER_ASSIGNED",
+          "DRIVER_EN_ROUTE",
+          "DRIVER_ARRIVED",
+          "PASSENGER_PICKED_UP",
+          "TRIP_IN_PROGRESS",
+          "COMPLETED",
+          "CANCELLED",
+        ].includes(booking.status)
+      );
+
+      if (isAssignedOrOngoing) {
+        return NextResponse.json(
+          {
+            error:
+              "This custom trip has an assigned driver or is already in progress/completed. It cannot be edited directly through the trip builder. Please use the cancellation or support options.",
+          },
+          { status: 400 }
+        );
+      }
       
       const previousRev = Number(booking.customTripDetails?.revision) || 1;
       nextRevision = previousRev + 1;
       isResubmission = !isDraft;
 
-      // Invalidate any prior approval on resubmission/edit
+      // Invalidate any prior approval on resubmission/edit before driver acceptance
       if (!isDraft) {
         booking.approvedAt = undefined;
         booking.approvedBy = undefined;

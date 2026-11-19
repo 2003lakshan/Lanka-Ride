@@ -221,7 +221,13 @@ export default function PlacesAutocompleteInput({
     
     if (!query || !query.trim()) {
       // Show default top places when empty
-      setSuggestions(LOCAL_PLACES.slice(0, 8));
+      setSuggestions(
+        LOCAL_PLACES.slice(0, 8).map(p => ({
+          ...p,
+          source: 'local',
+          description: p.address,
+        }))
+      );
       setShowDropdown(true);
       return;
     }
@@ -244,19 +250,20 @@ export default function PlacesAutocompleteInput({
   }, [query, isFocused]);
 
   const handleSelect = (suggestion: any) => {
-    setQuery(suggestion.description);
+    const text = suggestion.description || suggestion.address || "";
+    setQuery(text);
     setShowDropdown(false);
     
     if (suggestion.source === 'local') {
       onChange({
-        address: suggestion.address,
+        address: suggestion.address || suggestion.description || "",
         lat: suggestion.lat,
         lng: suggestion.lng,
         source: 'local'
       });
     } else {
       onChange({
-        address: suggestion.description,
+        address: suggestion.description || suggestion.address || "",
         lat: suggestion.lat || 0,
         lng: suggestion.lng || 0,
         source: 'custom'
@@ -374,7 +381,7 @@ export default function PlacesAutocompleteInput({
           )}
           
           <ul className="max-h-72 overflow-y-auto py-2">
-            {!query.trim() && (
+            {!(query || "").trim() && (
               <li 
                 onClick={handleCurrentLocation}
                 className="px-4 py-3 hover:bg-blue-50 cursor-pointer flex items-center gap-3 border-b border-slate-50"
@@ -386,7 +393,7 @@ export default function PlacesAutocompleteInput({
               </li>
             )}
             
-            {suggestions.length === 0 && !loading && query.trim() && (
+            {suggestions.length === 0 && !loading && Boolean((query || "").trim()) && (
               <li className="px-4 py-8 text-center text-slate-500 text-sm">
                 No places found. Check your spelling.
               </li>

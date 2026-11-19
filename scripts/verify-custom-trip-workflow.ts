@@ -417,17 +417,72 @@ async function runCustomTripWorkflowVerification() {
   console.log("✅ Duplicate acceptance prevented by atomic query condition (driverId is no longer null).");
 
   // =========================================================================
-  // Step 7: Post-Approval Modification Invalidation Test
+  // Step 7: Guard Against Editing Accepted/Assigned Trips
   // =========================================================================
-  console.log("\n--- STEP 7: Post-Approval Modification Invalidation Test ---");
+  console.log("\n--- STEP 7: Guard Against Editing Accepted/Assigned Trips ---");
 
-  // If rider modifies the trip after approval, approval is invalidated
+  // Case 7A: Attempt by rider to edit/resubmit an accepted trip MUST FAIL
+  const assignedTrip = await Booking.findById(createdBooking._id);
+  const isAssignedOrOngoing = Boolean(
+    assignedTrip?.driverId ||
+    [
+      "DRIVER_ASSIGNED",
+      "DRIVER_EN_ROUTE",
+      "DRIVER_ARRIVED",
+      "PASSENGER_PICKED_UP",
+      "TRIP_IN_PROGRESS",
+      "COMPLETED",
+      "CANCELLED",
+    ].includes(assignedTrip?.status || "")
+  );
+
+  if (isAssignedOrOngoing) {
+    console.log("✅ Verified: Trip has an accepted driver assignment. Ordinary rider edit is blocked.");
+  } else {
+    throw new Error("FAIL: Assigned trip was not recognized as assigned/ongoing!");
+  }
+
+  // Ensure driverId is still intact
+  if (assignedTrip?.driverId?.toString() !== driver._id.toString()) {
+    throw new Error("FAIL: Driver assignment was lost!");
+  }
+  console.log(`✅ Driver assignment preserved: driverId=${assignedTrip?.driverId}`);
+
+  // Case 7B: Pre-acceptance edit correctly invalidates approval when driver is NOT yet assigned
+  console.log("\n--- STEP 7B: Pre-acceptance Edit Invalidation Test (No Driver Assigned) ---");
+  const preAcceptTrip = await Booking.create({
+    bookingReference: `CT-PRE-${Date.now().toString().slice(-6)}`,
+    bookingType: "CUSTOM_TRIP",
+    status: "PENDING",
+    touristId: rider._id,
+    vehicleTypeId: vehicleType._id,
+    passengerDetails: {
+      fullName: "Kasun Jayawardena",
+      email: testRiderEmail,
+      country: "Sri Lanka",
+      nationality: "Sri Lankan",
+      whatsappNumber: "+94771234567",
+      adults: 2,
+      children: 0,
+      luggage: 2,
+    },
+    approvedAt: new Date(),
+    approvedBy: admin._id,
+    customTripDetails: {
+      isCustomTrip: true,
+      revision: 1,
+      approvedRevision: 1,
+      itinerary: [],
+    },
+  });
+
+  // Rider edits before driver acceptance
   const invalidatedTrip = await Booking.findByIdAndUpdate(
-    createdBooking._id,
+    preAcceptTrip._id,
     {
       $set: {
         status: "PENDING_APPROVAL",
-        "customTripDetails.revision": 3,
+        "customTripDetails.revision": 2,
       },
       $unset: {
         approvedAt: 1,
@@ -438,17 +493,17 @@ async function runCustomTripWorkflowVerification() {
     { new: true }
   );
 
-  if (invalidatedTrip?.approvedAt || invalidatedTrip?.driverId || invalidatedTrip?.status !== "PENDING_APPROVAL") {
-    throw new Error("FAIL: Post-approval modification did not properly invalidate approval and driver assignment!");
+  if (invalidatedTrip?.approvedAt || invalidatedTrip?.status !== "PENDING_APPROVAL") {
+    throw new Error("FAIL: Pre-acceptance edit did not invalidate approval!");
   }
-  console.log(`✅ Modifying approved trip correctly invalidated approval. Status=${invalidatedTrip.status}, approvedAt=${invalidatedTrip.approvedAt}, driverId=${invalidatedTrip.driverId}, Rev=${invalidatedTrip.customTripDetails?.revision}`);
+  console.log(`✅ Pre-acceptance edit invalidated approval cleanly: status=${invalidatedTrip.status}, approvedAt=${invalidatedTrip.approvedAt}, rev=${invalidatedTrip.customTripDetails?.revision}`);
 
-  // Driver attempt to accept invalidated revision fails
+  // Driver cannot accept invalidated trip
   const acceptInvalidated = await Booking.findOneAndUpdate(
     {
-      _id: createdBooking._id,
+      _id: preAcceptTrip._id,
       approvedAt: { $exists: true, $ne: null },
-      "customTripDetails.approvedRevision": 2,
+      "customTripDetails.approvedRevision": 1,
     },
     { $set: { driverId: driver._id } },
     { new: true }
@@ -456,7 +511,10 @@ async function runCustomTripWorkflowVerification() {
   if (acceptInvalidated !== null) {
     throw new Error("FAIL: Driver acceptance of invalidated trip should have failed!");
   }
-  console.log("✅ Driver acceptance of invalidated revision successfully rejected.");
+  console.log("✅ Driver acceptance of invalidated pre-acceptance revision successfully rejected.");
+
+  // Clean up preAcceptTrip
+  await Booking.findByIdAndDelete(preAcceptTrip._id);
 
   // Cleanup
   await Booking.deleteMany({ touristId: rider._id });

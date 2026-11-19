@@ -60,6 +60,22 @@ export default async function TripBuilderPage(props: { searchParams: Promise<{ e
   if (searchParams.edit) {
     const booking = await Booking.findOne({ _id: searchParams.edit, touristId: (session.user as any).id }).lean();
     if (booking && booking.customTripDetails) {
+      const isAssignedOrOngoing = Boolean(
+        booking.driverId ||
+        [
+          "DRIVER_ASSIGNED",
+          "DRIVER_EN_ROUTE",
+          "DRIVER_ARRIVED",
+          "PASSENGER_PICKED_UP",
+          "TRIP_IN_PROGRESS",
+          "COMPLETED",
+          "CANCELLED",
+        ].includes(booking.status)
+      );
+
+      if (isAssignedOrOngoing) {
+        redirect("/my-bookings");
+      }
       initialData = JSON.parse(JSON.stringify(booking));
     }
   }
