@@ -68,12 +68,23 @@ export default async function AdminIdentityReviewsPage(props: {
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2.5">
             <IdCard className="text-blue-600 shrink-0" size={30} />
-            Identity Reviews
+            Custom Trip
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Review and verify government-issued identity documents submitted by booking contacts and riders.
+            Review custom private trip identity submissions and verify passenger documents.
           </p>
         </div>
+      </div>
+
+      {/* Section Header */}
+      <div className="pt-1 border-b border-slate-200/80 pb-3">
+        <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+          <ShieldCheck className="text-blue-600" size={20} />
+          Rider Identity Verification
+        </h2>
+        <p className="text-xs text-slate-500 mt-0.5">
+          Review and verify government-issued identity documents submitted by booking contacts and riders.
+        </p>
       </div>
 
       {/* Filter Tabs */}

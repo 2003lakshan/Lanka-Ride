@@ -130,7 +130,7 @@ export default function AdminIdentityReviewDetailClient({
           className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-blue-600 transition-colors"
         >
           <ArrowLeft size={15} />
-          <span>Back to Identity Reviews</span>
+          <span>Back to Custom Trip</span>
         </Link>
       </div>
 

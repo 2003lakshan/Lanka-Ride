@@ -28,10 +28,10 @@ async function runAdminIdentityVerificationTest() {
   // 1. Verify Sidebar Navigation Item
   console.log("\n--- Check 1: Sidebar Navigation Item in Admin Layout ---");
   const identityNavItem = adminNavItems.find(
-    (item) => item.name === "Identity Reviews" && item.href === "/admin/identity-reviews"
+    (item) => item.name === "Custom Trip" && item.href === "/admin/identity-reviews"
   );
   if (!identityNavItem) {
-    throw new Error("Sidebar navigation does not contain 'Identity Reviews' item!");
+    throw new Error("Sidebar navigation does not contain 'Custom Trip' item pointing to '/admin/identity-reviews'!");
   }
   console.log("✅ Sidebar item verified:", identityNavItem);
 
