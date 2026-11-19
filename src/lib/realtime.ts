@@ -178,6 +178,26 @@ export async function broadcastNotificationRead(userId: string, data: { readId?:
 }
 
 /**
+ * Broadcast identity verification status change to the rider.
+ */
+export async function broadcastIdentityStatusUpdated(
+  userId: string,
+  data: {
+    identityId?: string;
+    status: string;
+    version: number;
+    rejectionReason?: string;
+    reviewedAt?: Date | string;
+  }
+) {
+  return emitRealtimeEvent({
+    target: { toUser: userId.toString() },
+    event: "identity:status_updated",
+    data,
+  });
+}
+
+/**
  * Broadcast chat message to enquiry room and recipient.
  */
 export async function broadcastChatMessage(enquiryId: string, message: any, recipientId: string, metadata?: any) {

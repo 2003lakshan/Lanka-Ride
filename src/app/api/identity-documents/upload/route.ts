@@ -124,7 +124,11 @@ export async function POST(req: Request) {
         : Boolean(identity.files.photoPage?.fileId);
 
     // Any new upload or file replacement increments the document version and invalidates prior review status
-    identity.version = (identity.version || 0) + 1;
+    if (identity.isNew) {
+      identity.version = 1;
+    } else {
+      identity.version = (Number(identity.version) || 1) + 1;
+    }
     identity.filesUpdatedAt = new Date();
     identity.status = "PENDING_REVIEW";
     identity.reviewedBy = undefined;

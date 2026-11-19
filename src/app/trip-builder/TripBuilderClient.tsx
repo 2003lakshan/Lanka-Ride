@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   Calendar,
@@ -44,6 +44,7 @@ import ItineraryRouteSummary from "@/components/booking/ItineraryRouteSummary";
 import CountrySelect from "@/components/booking/CountrySelect";
 import PhoneInputWithCountry from "@/components/booking/PhoneInputWithCountry";
 import { formatSriLankanDate } from "@/lib/dateTime";
+import { useSocket } from "@/components/providers/SocketProvider";
 
 interface VehicleType {
   _id: string;
@@ -309,7 +310,7 @@ export default function TripBuilderClient({
     Boolean(initialIdentity?.acknowledgedPurpose ?? (initialIdentity?.status ? true : false))
   );
   const [identityStatus, setIdentityStatus] = useState<string>(
-    initialIdentity?.status || "NOT_SUBMITTED"
+    initialIdentity?.status || currentUserProfile?.identityStatus || "NOT_SUBMITTED"
   );
   const [identityRejectionReason, setIdentityRejectionReason] = useState<string>(
     initialIdentity?.rejectionReason || ""
@@ -322,13 +323,98 @@ export default function TripBuilderClient({
   const [uploadingKey, setUploadingKey] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string>("");
 
+  const { socket, registerReconnectHandler } = useSocket();
+
+  // Authoritative identity status fetcher
+  const fetchAuthoritativeStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/identity-documents/status", { cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data && data.status) {
+        setIdentityStatus(data.status);
+        if (data.rejectionReason !== undefined) {
+          setIdentityRejectionReason(data.rejectionReason || "");
+        }
+        if (data.documentType) {
+          setDocumentType(data.documentType);
+        }
+        if (data.acknowledgedPurpose || data.status === "APPROVED") {
+          setAcknowledgedPurpose(true);
+        }
+        if (data.files && Object.keys(data.files).length > 0) {
+          setIdentityFiles(data.files);
+        }
+      }
+    } catch (e) {
+      console.error("[TripBuilder] Failed to fetch authoritative identity status:", e);
+    }
+  }, []);
+
+  // Listen for realtime updates, window focus, visibility, and socket reconnect
+  useEffect(() => {
+    fetchAuthoritativeStatus();
+
+    const handleFocus = () => {
+      fetchAuthoritativeStatus();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        fetchAuthoritativeStatus();
+      }
+    };
+
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    const unregisterReconnect = registerReconnectHandler?.(() => {
+      fetchAuthoritativeStatus();
+    });
+
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      unregisterReconnect?.();
+    };
+  }, [fetchAuthoritativeStatus, registerReconnectHandler]);
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleStatusUpdated = (payload: any) => {
+      if (payload?.status) {
+        setIdentityStatus(payload.status);
+        if (payload.rejectionReason !== undefined) {
+          setIdentityRejectionReason(payload.rejectionReason || "");
+        }
+        fetchAuthoritativeStatus();
+      }
+    };
+
+    const handleNotification = (notif: any) => {
+      if (notif?.type === "IDENTITY_STATUS_UPDATED" || notif?.title?.toLowerCase().includes("identity")) {
+        fetchAuthoritativeStatus();
+      }
+    };
+
+    socket.on("identity:status_updated", handleStatusUpdated);
+    socket.on("notification:new", handleNotification);
+
+    return () => {
+      socket.off("identity:status_updated", handleStatusUpdated);
+      socket.off("notification:new", handleNotification);
+    };
+  }, [socket, fetchAuthoritativeStatus]);
+
   const isIdentityComplete = useMemo(() => {
+    if (identityStatus === "APPROVED") return true;
     if (!acknowledgedPurpose) return false;
     if (documentType === "NATIONAL_ID") {
       return Boolean(identityFiles?.front?.fileId && identityFiles?.back?.fileId);
     }
     return Boolean(identityFiles?.photoPage?.fileId);
-  }, [acknowledgedPurpose, documentType, identityFiles]);
+  }, [acknowledgedPurpose, documentType, identityFiles, identityStatus]);
 
   const handleFileUpload = async (fileKey: "front" | "back" | "photoPage", file: File) => {
     setUploadError("");
@@ -698,14 +784,16 @@ export default function TripBuilderClient({
     if (!contactPhone.trim() || contactPhone.replace(/\D/g, "").length < 7) {
       return "Please enter a valid mobile number with country code.";
     }
-    if (!acknowledgedPurpose) {
-      return "Please acknowledge the identity document verification purpose.";
-    }
-    if (documentType === "NATIONAL_ID") {
-      if (!identityFiles?.front?.fileId) return "Please upload the front image of your National ID Card.";
-      if (!identityFiles?.back?.fileId) return "Please upload the back image of your National ID Card.";
-    } else {
-      if (!identityFiles?.photoPage?.fileId) return "Please upload your Passport photo & details page.";
+    if (identityStatus !== "APPROVED") {
+      if (!acknowledgedPurpose) {
+        return "Please acknowledge the identity document verification purpose.";
+      }
+      if (documentType === "NATIONAL_ID") {
+        if (!identityFiles?.front?.fileId) return "Please upload the front image of your National ID Card.";
+        if (!identityFiles?.back?.fileId) return "Please upload the back image of your National ID Card.";
+      } else {
+        if (!identityFiles?.photoPage?.fileId) return "Please upload your Passport photo & details page.";
+      }
     }
     if (identityStatus === "REJECTED") {
       return `Your identity document was rejected: "${identityRejectionReason}". Please re-upload before continuing.`;

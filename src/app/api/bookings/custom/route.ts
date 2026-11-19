@@ -122,9 +122,10 @@ export async function POST(req: Request) {
       );
 
       const isIdentityComplete =
-        identityDoc.documentType === "NATIONAL_ID"
+        identityDoc.status === "APPROVED" ||
+        (identityDoc.documentType === "NATIONAL_ID"
           ? Boolean(isFrontValid && isBackValid)
-          : Boolean(isPhotoPageValid);
+          : Boolean(isPhotoPageValid));
 
       if (!isIdentityComplete) {
         return NextResponse.json(
@@ -197,8 +198,8 @@ export async function POST(req: Request) {
         identityId: activeIdentity._id,
         documentType: activeIdentity.documentType,
         status: activeIdentity.status,
-        version: activeIdentity.version,
-        reviewedVersion: activeIdentity.reviewedVersion,
+        version: Number(activeIdentity.version) || 1,
+        reviewedVersion: activeIdentity.reviewedVersion ? Number(activeIdentity.reviewedVersion) : undefined,
         rejectionReason: activeIdentity.rejectionReason,
         reviewedBy: activeIdentity.reviewedBy,
         reviewedAt: activeIdentity.reviewedAt,

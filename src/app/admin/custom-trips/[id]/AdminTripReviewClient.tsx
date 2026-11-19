@@ -26,6 +26,9 @@ export default function AdminTripReviewClient({ booking }: { booking: any }) {
   const [identityStatus, setIdentityStatus] = useState<string>(
     idVerification?.status || "NOT_SUBMITTED"
   );
+  const [identityVersion, setIdentityVersion] = useState<number>(
+    Number(idVerification?.version) || 1
+  );
   const [identityRejectionReason, setIdentityRejectionReason] = useState<string>(
     idVerification?.rejectionReason || ""
   );
@@ -56,12 +59,13 @@ export default function AdminTripReviewClient({ booking }: { booking: any }) {
           action,
           rejectionReason: reason,
           bookingId: booking._id,
-          expectedVersion: idVerification?.version,
+          expectedVersion: identityVersion,
         }),
       });
       const data = await res.json();
       if (res.ok) {
         setIdentityStatus(data.status);
+        if (data.version) setIdentityVersion(data.version);
         if (action === "REJECT") {
           setIdentityRejectionReason(reason || "");
           setShowRejectModal(false);
@@ -276,9 +280,9 @@ export default function AdminTripReviewClient({ booking }: { booking: any }) {
                     {idVerification.documentType === "NATIONAL_ID" ? "National ID Card" : "Passport"}
                   </div>
                 </div>
-                {idVerification.version && (
+                {identityVersion && (
                   <span className="text-[11px] font-bold text-slate-500 bg-slate-200/80 px-2.5 py-1 rounded-md">
-                    Version {idVerification.version}
+                    Version {identityVersion}
                   </span>
                 )}
               </div>

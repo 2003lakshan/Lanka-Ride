@@ -43,7 +43,7 @@ export async function POST(req: Request) {
         : Boolean(identity.files?.photoPage?.fileId);
 
     // Increment version and reset approval upon file removal
-    identity.version = (identity.version || 0) + 1;
+    identity.version = (Number(identity.version) || 1) + 1;
     identity.filesUpdatedAt = new Date();
     identity.status = "PENDING_REVIEW";
     identity.reviewedBy = undefined;
