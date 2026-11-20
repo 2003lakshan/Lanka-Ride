@@ -585,9 +585,155 @@ export default function AdminTripsClient({ initialBookings }: { initialBookings:
         </div>
       </div>
 
-      {/* Main Trips Table */}
+      {/* Main Trips: Mobile Cards (< md) + Desktop Table (>= md) */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* Mobile Card List (< md screens) */}
+        <div className="md:hidden divide-y divide-slate-100 p-3 space-y-3">
+          {paginatedBookings.length === 0 ? (
+            <div className="p-8 text-center text-slate-500">
+              <p className="font-bold text-slate-800 text-base mb-1">No trips found</p>
+              <p className="text-xs text-slate-400">Try adjusting your filters, search keywords, or selected tab.</p>
+            </div>
+          ) : (
+            paginatedBookings.map((booking) => {
+              const isCompleted = booking.status === "COMPLETED";
+              const isCustom = Boolean(booking.customTripDetails?.isCustomTrip);
+              const isPendingFinalConfirmation = booking.status === "PENDING_ADMIN_CONFIRMATION" && booking.paymentStatus === "PAID";
+              const passengerName = booking.rider?.fullName || booking.passengerDetails?.fullName || booking.touristId?.name || "Rider name unavailable";
+              const passengerContact = booking.rider?.whatsappNumber || booking.passengerDetails?.whatsappNumber || booking.rider?.email || booking.passengerDetails?.email || "";
+              const confirmedFare = isCustom
+                ? (booking.customTripDetails?.confirmedAmount
+                    ? `${booking.customTripDetails.confirmedCurrency || "USD"} ${Number(booking.customTripDetails.confirmedAmount).toLocaleString()}`
+                    : null)
+                : (booking.fareBreakdown?.totalEstimatedFare
+                    ? formatSriLankanLKR(booking.fareBreakdown.totalEstimatedFare)
+                    : null);
+
+              return (
+                <div 
+                  key={booking._id} 
+                  className={`bg-slate-50/70 rounded-xl p-4 border border-slate-200/80 shadow-xs space-y-3 ${
+                    isPendingFinalConfirmation ? "border-amber-300 bg-amber-50/20" : ""
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-mono font-bold text-slate-900 text-xs">{booking.bookingReference}</span>
+                      {isCustom ? (
+                        <span className="bg-purple-100 text-purple-800 text-[10px] uppercase px-1.5 py-0.5 rounded font-bold">
+                          Custom
+                        </span>
+                      ) : (
+                        <span className="bg-slate-100 text-slate-700 text-[10px] uppercase px-1.5 py-0.5 rounded font-bold">
+                          Transfer
+                        </span>
+                      )}
+                    </div>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase border ${getStatusColor(booking.status)}`}>
+                      {booking.status.replace(/_/g, " ")}
+                    </span>
+                  </div>
+
+                  <div className="space-y-1 text-xs">
+                    <div className="flex items-start gap-1.5">
+                      <span className="text-emerald-600 font-bold shrink-0">●</span>
+                      <span className="text-slate-800 font-medium truncate">
+                        {booking.pickupAddress || booking.airportId?.name || (isCustom ? "Custom Pickup" : "Airport")}
+                      </span>
+                    </div>
+                    <div className="flex items-start gap-1.5">
+                      <span className="text-rose-600 font-bold shrink-0">■</span>
+                      <span className="text-slate-600 truncate">
+                        {booking.destinationAddress || (isCustom ? `${booking.customTripDetails?.itinerary?.length || 1} Days Itinerary` : "Destination")}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-slate-200/60">
+                    <div>
+                      <span className="text-[10px] text-slate-400 block font-semibold">Rider</span>
+                      <span className="font-bold text-slate-800 truncate block">{passengerName}</span>
+                      {passengerContact && <span className="text-[10px] text-slate-500 truncate block">{passengerContact}</span>}
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 block font-semibold">Schedule</span>
+                      <span className="font-bold text-slate-800">
+                        {isCustom && booking.customTripDetails?.startDate
+                          ? formatSriLankanDate(booking.customTripDetails.startDate)
+                          : booking.arrivalDate
+                          ? formatSriLankanDate(booking.arrivalDate)
+                          : "Flexible"}
+                      </span>
+                      <span className="text-[10px] text-slate-500 block">
+                        {booking.arrivalTime || (isCustom ? `${booking.customTripDetails?.itinerary?.length || 1} Day Tour` : "")}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-slate-200/60">
+                    <div>
+                      <span className="text-[10px] text-slate-400 block font-semibold">Driver</span>
+                      {booking.driverId ? (
+                        <span className="font-bold text-slate-800 truncate block">{booking.driverId.name}</span>
+                      ) : (
+                        <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200 inline-block">
+                          Unassigned
+                        </span>
+                      )}
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 block font-semibold">Fare / Payment</span>
+                      <span className="font-bold text-slate-900 block">
+                        {confirmedFare || (booking.customTripDetails?.budget ? `${booking.customTripDetails.budgetCurrency || "USD"} ${booking.customTripDetails.budget}` : "N/A")}
+                      </span>
+                      <span className={`text-[9px] font-bold uppercase px-1.5 py-0.2 rounded border ${getPaymentStatusBadge(booking.paymentStatus)}`}>
+                        {booking.paymentStatus || "PENDING"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-200/60">
+                    <Link
+                      href={`/admin/trips/${booking._id}`}
+                      className="text-xs font-bold text-slate-600 hover:text-slate-900 inline-flex items-center gap-1"
+                    >
+                      <span>Full Track</span>
+                      <ExternalLink size={12} />
+                    </Link>
+
+                    <div className="flex items-center gap-2">
+                      {isPendingFinalConfirmation && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedBooking(booking);
+                            setActionMessage(null);
+                          }}
+                          className="px-3 py-1.5 bg-emerald-600 text-white font-bold rounded-xl text-xs"
+                        >
+                          Confirm
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedBooking(booking);
+                          setActionMessage(null);
+                        }}
+                        className="px-3 py-1.5 bg-slate-900 text-white font-bold rounded-xl text-xs"
+                      >
+                        Details
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Desktop Table View (>= md screens) */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left border-collapse min-w-[900px]">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50/75 text-[11px] font-extrabold uppercase tracking-wider text-slate-500">
