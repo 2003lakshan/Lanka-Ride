@@ -58,13 +58,24 @@ export default function Navbar() {
     };
   }, [mobileMenuOpen]);
 
+  // Close mobile menu on resize to desktop breakpoint (>= 1280px)
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 1280 && mobileMenuOpen) {
+        setMobileMenuOpen(false);
+      }
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [mobileMenuOpen]);
+
   const isActive = (path: string) => {
     if (path === "/" && pathname !== "/") return false;
     return pathname.startsWith(path);
   };
 
   const navLinkClass = (path: string) => `
-    font-semibold text-xs xl:text-sm transition-all px-2 xl:px-3 py-1.5 xl:py-2 rounded-lg flex items-center gap-1.5 shrink-0 whitespace-nowrap
+    font-semibold text-xs 2xl:text-sm transition-all px-2 2xl:px-2.5 py-1.5 rounded-lg flex items-center gap-1 shrink-0 whitespace-nowrap
     ${isActive(path) 
       ? "text-blue-700 bg-blue-50 font-bold" 
       : "text-slate-600 hover:text-blue-600 hover:bg-slate-50"
@@ -82,16 +93,16 @@ export default function Navbar() {
   const userRole = (session?.user as any)?.role;
 
   return (
-    <header className="bg-white/95 backdrop-blur-xl sticky top-0 z-50 border-b border-slate-100 shadow-xs relative">
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-20 gap-2 min-w-0">
+    <header className="bg-white/95 backdrop-blur-xl sticky top-0 z-50 border-b border-slate-100 shadow-xs relative w-full">
+      <div className="max-w-7xl 2xl:max-w-screen-2xl mx-auto px-4 sm:px-6 xl:px-8">
+        <div className="flex justify-between items-center h-20 gap-2 sm:gap-4 min-w-0">
           {/* Logo on the left */}
           <div className="shrink-0 flex items-center min-w-0">
             <Link href="/" className="flex items-center gap-1.5 sm:gap-2 group min-w-0">
               <div className="bg-linear-to-br from-blue-600 to-blue-800 text-white p-2 sm:p-2.5 rounded-xl shadow-md group-hover:shadow-blue-500/30 transition-all shrink-0">
                 <Plane size={22} className="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
-              <span className="font-extrabold text-base sm:text-xl lg:text-2xl tracking-tight text-slate-900 ml-1 truncate">
+              <span className="font-extrabold text-base sm:text-lg xl:text-xl tracking-tight text-slate-900 ml-1 truncate">
                 <span className="hidden min-[420px]:inline">Lanka Airport </span>
                 <span className="min-[420px]:hidden">Lanka </span>
                 <span className="text-blue-600">Ride</span>
@@ -99,8 +110,8 @@ export default function Navbar() {
             </Link>
           </div>
           
-          {/* Desktop Navigation (visible on lg screens >= 1024px) */}
-          <nav className="hidden lg:flex items-center gap-0.5 xl:gap-1 min-w-0 overflow-x-auto no-scrollbar">
+          {/* Desktop Navigation (visible on xl screens >= 1280px) */}
+          <nav className="hidden xl:flex items-center gap-0.5 2xl:gap-1.5 shrink-0">
             <Link href="/" className={navLinkClass("/")}>Home</Link>
             <Link href="/packages" className={navLinkClass("/packages")}>Tour Packages</Link>
             
@@ -129,24 +140,24 @@ export default function Navbar() {
             <Link href="/contact" className={navLinkClass("/contact")}>Contact</Link>
           </nav>
           
-          {/* Desktop Right Actions (visible on lg screens >= 1024px) */}
-          <div className="hidden lg:flex items-center gap-2 xl:gap-3 shrink-0">
+          {/* Desktop Right Actions (visible on xl screens >= 1280px) */}
+          <div className="hidden xl:flex items-center gap-1.5 xl:gap-2 2xl:gap-3 shrink-0">
             {session ? (
               <>
                 <RealtimeIndicator />
                 <NotificationBell />
                 <Link 
                   href="/profile" 
-                  className="flex items-center gap-1.5 text-slate-700 hover:text-blue-600 hover:bg-slate-100 font-bold bg-slate-50 px-2.5 xl:px-3.5 py-1.5 xl:py-2 rounded-full border border-slate-200/80 transition-colors text-xs xl:text-sm"
+                  className="flex items-center gap-1.5 text-slate-700 hover:text-blue-600 hover:bg-slate-100 font-bold bg-slate-50 px-2.5 2xl:px-3 py-1.5 rounded-full border border-slate-200/80 transition-colors text-xs 2xl:text-sm shrink-0 min-w-0"
                   title={session.user?.name || "Profile"}
                 >
-                  <User size={16} className="text-blue-600 shrink-0" />
-                  <span className="max-w-[85px] xl:max-w-[130px] truncate">{session.user?.name}</span>
+                  <User size={15} className="text-blue-600 shrink-0" />
+                  <span className="max-w-[85px] xl:max-w-[105px] 2xl:max-w-[125px] truncate block">{session.user?.name || "Profile"}</span>
                 </Link>
                 <button 
                   type="button"
                   onClick={() => signOut({ callbackUrl: "/" })} 
-                  className="flex items-center gap-1 text-slate-500 hover:text-red-600 font-bold text-xs xl:text-sm transition-colors cursor-pointer px-1.5 py-1"
+                  className="flex items-center gap-1 text-slate-500 hover:text-red-600 font-bold text-xs 2xl:text-sm transition-colors cursor-pointer px-1.5 py-1 shrink-0"
                   title="Logout"
                 >
                   <LogOut size={16} className="shrink-0" />
@@ -154,7 +165,7 @@ export default function Navbar() {
                 </button>
               </>
             ) : (
-              <Link href="/login" className="flex items-center gap-1.5 text-slate-700 hover:text-blue-600 font-bold text-xs xl:text-sm transition-colors px-2 py-1">
+              <Link href="/login" className="flex items-center gap-1.5 text-slate-700 hover:text-blue-600 font-bold text-xs 2xl:text-sm transition-colors px-2.5 py-1.5 shrink-0">
                 <User size={16} className="shrink-0" />
                 <span>Login</span>
               </Link>
@@ -163,26 +174,35 @@ export default function Navbar() {
             {(!session || userRole === "TOURIST") && (
               <Link 
                 href="/booking" 
-                className="bg-slate-900 hover:bg-blue-700 text-white px-3.5 xl:px-5 py-2 xl:py-2.5 rounded-xl font-bold text-xs xl:text-sm transition-all shadow-xs hover:shadow-md flex items-center gap-1.5 shrink-0"
+                className="bg-slate-900 hover:bg-blue-700 text-white px-3.5 2xl:px-4 py-2 rounded-xl font-bold text-xs 2xl:text-sm transition-all shadow-xs hover:shadow-md flex items-center gap-1.5 shrink-0"
               >
                 Book Now
               </Link>
             )}
           </div>
 
-          {/* Mobile Right Action Bar (visible on screens < 1024px) */}
-          <div className="lg:hidden flex items-center gap-1.5 sm:gap-2 relative z-50 shrink-0">
+          {/* Mobile / Tablet Right Action Bar (visible on screens < 1280px) */}
+          <div className="xl:hidden flex items-center gap-1.5 sm:gap-2.5 relative z-50 shrink-0">
             {session && (
               <>
                 <RealtimeIndicator />
                 <NotificationBell />
+                {/* Tablet quick profile shortcut */}
+                <Link 
+                  href="/profile" 
+                  className="hidden sm:flex items-center gap-1.5 text-slate-700 hover:text-blue-600 hover:bg-slate-100 font-bold bg-slate-50 px-2.5 py-1.5 rounded-full border border-slate-200/80 transition-colors text-xs shrink-0"
+                  title={session.user?.name || "Profile"}
+                >
+                  <User size={14} className="text-blue-600 shrink-0" />
+                  <span className="max-w-[70px] md:max-w-[100px] truncate block">{session.user?.name || "Profile"}</span>
+                </Link>
               </>
             )}
 
             {!session && (
               <Link
                 href="/login"
-                className="bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1"
+                className="bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 shrink-0"
               >
                 <LogIn size={14} />
                 <span>Login</span>
@@ -197,7 +217,7 @@ export default function Navbar() {
               aria-expanded={mobileMenuOpen}
               aria-controls="mobile-navigation-menu"
               onClick={() => setMobileMenuOpen(prev => !prev)}
-              className="min-w-[40px] min-h-[40px] p-2 text-slate-700 hover:text-blue-600 hover:bg-slate-100 active:bg-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-blue-500 transition-colors flex items-center justify-center touch-manipulation cursor-pointer select-none"
+              className="min-w-[40px] min-h-[40px] p-2 text-slate-700 hover:text-blue-600 hover:bg-slate-100 active:bg-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-blue-500 transition-colors flex items-center justify-center touch-manipulation cursor-pointer select-none shrink-0"
             >
               {mobileMenuOpen ? (
                 <X size={24} className="text-slate-900 transition-transform duration-200" />
@@ -209,24 +229,25 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* Mobile Menu Backdrop Overlay (< 1024px) */}
+      {/* Mobile / Tablet Menu Backdrop Overlay (< 1280px) */}
       {mobileMenuOpen && (
         <div 
-          className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-40 lg:hidden transition-opacity duration-200" 
+          className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-40 xl:hidden transition-opacity duration-200" 
           onClick={() => setMobileMenuOpen(false)}
           aria-hidden="true"
         />
       )}
 
-      {/* Mobile Menu Drawer (< 1024px) */}
+      {/* Mobile / Tablet Menu Drawer (< 1280px) */}
       {mobileMenuOpen && (
         <div 
           id="mobile-navigation-menu"
           role="dialog"
           aria-modal="true"
           aria-label="Navigation Menu"
-          className="fixed top-20 left-0 right-0 bg-white border-b border-slate-200 shadow-2xl py-4 px-4 flex flex-col gap-1 max-h-[calc(100dvh-5rem)] overflow-y-auto overscroll-contain z-50 lg:hidden animate-in slide-in-from-top-2 duration-200"
+          className="fixed top-20 left-0 right-0 bg-white border-b border-slate-200 shadow-2xl py-4 px-4 sm:px-6 md:px-8 max-h-[calc(100dvh-5rem)] overflow-y-auto overscroll-contain z-50 xl:hidden animate-in slide-in-from-top-2 duration-200"
         >
+          <div className="max-w-2xl mx-auto w-full flex flex-col gap-1">
           {session ? (
             /* User Profile Header Card */
             <Link 
@@ -340,6 +361,13 @@ export default function Navbar() {
               <Package size={20} className="text-indigo-600 shrink-0" />
               <span>Tour Packages</span>
             </Link>
+
+            {(!session || userRole === "TOURIST") && (
+              <Link href="/booking" onClick={() => setMobileMenuOpen(false)} className={mobileNavLinkClass("/booking")}>
+                <Car size={20} className="text-emerald-600 shrink-0" />
+                <span>Book a Ride</span>
+              </Link>
+            )}
             
             <Link href="/track" onClick={() => setMobileMenuOpen(false)} className={mobileNavLinkClass("/track")}>
               <Search size={20} className="text-slate-500 shrink-0" />
@@ -384,6 +412,7 @@ export default function Navbar() {
                 </Link>
               </div>
             )}
+          </div>
           </div>
         </div>
       )}
