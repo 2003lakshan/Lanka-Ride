@@ -5,6 +5,7 @@ import "leaflet/dist/leaflet.css";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import Providers from "@/components/Providers";
+import WhatsAppSupportButton from "@/components/whatsapp/WhatsAppSupportButton";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -28,6 +29,7 @@ export default function RootLayout({
           <Navbar />
           <main className="flex-grow">{children}</main>
           <Footer />
+          <WhatsAppSupportButton />
         </Providers>
       </body>
     </html>

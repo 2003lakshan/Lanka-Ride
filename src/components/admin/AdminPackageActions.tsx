@@ -13,6 +13,7 @@ import {
   Loader2 
 } from "lucide-react";
 import AdminPackageDeleteModal from "./AdminPackageDeleteModal";
+import WhatsAppActionButton from "@/components/whatsapp/WhatsAppActionButton";
 
 interface AdminPackageActionsProps {
   packageId: string;
@@ -197,6 +198,13 @@ export default function AdminPackageActions({
             <span>Archive</span>
           </button>
         )}
+
+        {/* WhatsApp Driver Notification */}
+        <WhatsAppActionButton
+          packageId={packageId}
+          packageStatus={status}
+          buttonLabel="WhatsApp Driver"
+        />
 
         {/* Delete Package (Opens confirmation modal with checks) */}
         <button

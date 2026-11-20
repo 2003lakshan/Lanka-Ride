@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { formatSriLankanDate } from "@/lib/dateTime";
+import WhatsAppActionButton from "@/components/whatsapp/WhatsAppActionButton";
 
 export default function AdminTripReviewClient({ booking }: { booking: any }) {
   const router = useRouter();
@@ -257,6 +258,12 @@ export default function AdminTripReviewClient({ booking }: { booking: any }) {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            <WhatsAppActionButton
+              bookingId={booking._id}
+              hasAssignedDriver={Boolean(booking.driverId)}
+              isConfirmedOrApproved={["APPROVED", "CONFIRMED", "DRIVER_ASSIGNED", "COMPLETED"].includes(tripStatus)}
+            />
+
             {tripStatus === "PENDING_APPROVAL" ? (
               <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-extrabold bg-amber-500 text-white shadow-xs">
                 <Clock size={13} />

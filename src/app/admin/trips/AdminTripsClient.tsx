@@ -32,6 +32,7 @@ import {
 import { useSocket } from "@/components/providers/SocketProvider";
 import { useRouter } from "next/navigation";
 import { formatSriLankanDate, formatSriLankanLKR, formatSriLankanDateTime } from "@/lib/dateTime";
+import WhatsAppActionButton from "@/components/whatsapp/WhatsAppActionButton";
 
 type TripTab = "ALL" | "AWAITING_CONFIRMATION" | "ACTIVE" | "COMPLETED";
 
@@ -1002,6 +1003,12 @@ export default function AdminTripsClient({ initialBookings }: { initialBookings:
               </div>
 
               <div className="flex items-center gap-2">
+                <WhatsAppActionButton
+                  bookingId={selectedBooking._id}
+                  hasAssignedDriver={Boolean(selectedBooking.driverId)}
+                  isConfirmedOrApproved={["CONFIRMED", "APPROVED", "DRIVER_ASSIGNED", "DRIVER_EN_ROUTE", "TRIP_IN_PROGRESS", "COMPLETED"].includes(selectedBooking.status)}
+                />
+
                 <Link
                   href={`/admin/trips/${selectedBooking._id}`}
                   className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors shadow-xs"
@@ -1153,10 +1160,18 @@ export default function AdminTripsClient({ initialBookings }: { initialBookings:
 
               {/* 3. PASSENGER & CONTACT DETAILS */}
               <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3">
-                <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2 border-b border-slate-100 pb-2">
-                  <User size={17} className="text-slate-600" />
-                  <span>Passenger Details</span>
-                </h3>
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                  <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                    <User size={17} className="text-slate-600" />
+                    <span>Passenger Details</span>
+                  </h3>
+                  <WhatsAppActionButton
+                    bookingId={selectedBooking._id}
+                    singleActionType="BOOKING_ACKNOWLEDGEMENT"
+                    buttonLabel="WhatsApp Rider"
+                    variant="single"
+                  />
+                </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                   <div>
@@ -1192,10 +1207,21 @@ export default function AdminTripsClient({ initialBookings }: { initialBookings:
 
               {/* 4. DRIVER & VEHICLE ASSIGNMENT STATUS */}
               <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3">
-                <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2 border-b border-slate-100 pb-2">
-                  <Car size={17} className="text-indigo-600" />
-                  <span>Driver & Vehicle Assignment</span>
-                </h3>
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                  <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                    <Car size={17} className="text-indigo-600" />
+                    <span>Driver & Vehicle Assignment</span>
+                  </h3>
+                  {selectedBooking.driverId && (
+                    <WhatsAppActionButton
+                      bookingId={selectedBooking._id}
+                      singleActionType="NOTIFY_ASSIGNED_DRIVER"
+                      buttonLabel="WhatsApp Driver"
+                      variant="single"
+                      hasAssignedDriver={true}
+                    />
+                  )}
+                </div>
 
                 {selectedBooking.driverId ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">

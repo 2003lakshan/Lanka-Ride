@@ -25,6 +25,7 @@ import RiderTrackingMap from "@/components/booking/RiderTrackingMap";
 import { useSocket } from "@/components/providers/SocketProvider";
 import { AdminTripViewModel } from "@/lib/tripViewModel";
 import { formatSriLankanDate } from "@/lib/dateTime";
+import WhatsAppActionButton from "@/components/whatsapp/WhatsAppActionButton";
 
 export default function AdminTripTrackingClient({
   initialBooking,
@@ -235,6 +236,14 @@ export default function AdminTripTrackingClient({
                 </>
               )}
             </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <WhatsAppActionButton
+              bookingId={bookingId}
+              hasAssignedDriver={Boolean(booking.driverId)}
+              isConfirmedOrApproved={["CONFIRMED", "APPROVED", "DRIVER_ASSIGNED", "DRIVER_EN_ROUTE", "TRIP_IN_PROGRESS", "COMPLETED"].includes(booking.status)}
+            />
           </div>
         </div>
       </div>
