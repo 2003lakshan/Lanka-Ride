@@ -22,7 +22,8 @@ import {
   Briefcase,
   Luggage,
   Sparkles,
-  Info
+  Info,
+  Archive
 } from "lucide-react";
 import AdminPackageActions from "@/components/admin/AdminPackageActions";
 import PackageImage from "@/components/packages/PackageImage";
@@ -74,6 +75,8 @@ export default async function AdminPackageDetailsPage({ params }: { params: Prom
         return <span className="bg-rose-100 text-rose-800 border border-rose-200 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">Rejected</span>;
       case "PAUSED":
         return <span className="bg-orange-100 text-orange-800 border border-orange-200 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">Paused</span>;
+      case "ARCHIVED":
+        return <span className="bg-slate-200 text-slate-800 border border-slate-300 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider inline-flex items-center gap-1"><Archive size={12} /> Archived</span>;
       default:
         return <span className="bg-slate-100 text-slate-700 border border-slate-200 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">{st}</span>;
     }
@@ -104,9 +107,27 @@ export default async function AdminPackageDetailsPage({ params }: { params: Prom
               </div>
             </div>
           </div>
-          <AdminPackageActions packageId={id} status={pkg.status} revision={revision} />
+          <AdminPackageActions
+            packageId={id}
+            status={pkg.status}
+            revision={revision}
+            packageTitle={pkg.title}
+            category={pkg.category}
+            coverPhoto={pkg.coverPhoto}
+            driverName={pkg.driverId?.name}
+          />
         </div>
       </div>
+
+      {/* Archived Status Warning Banner */}
+      {pkg.status === "ARCHIVED" && (
+        <div className="bg-slate-900 text-amber-300 px-4 py-3 text-center text-xs sm:text-sm font-bold flex items-center justify-center gap-2 border-b border-slate-800 shadow-inner">
+          <Archive size={16} className="text-amber-400" />
+          <span>
+            This package is currently <strong>ARCHIVED</strong>. It is hidden from travellers and cannot be booked. Use the &ldquo;Restore Package&rdquo; button above to make it active again.
+          </span>
+        </div>
+      )}
 
       {/* Hero Banner with Resilient Package Image */}
       <div className="relative h-64 sm:h-80 md:h-96 w-full bg-slate-900 overflow-hidden">

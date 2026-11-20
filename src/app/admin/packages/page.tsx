@@ -5,8 +5,18 @@ import dbConnect from "@/lib/mongodb";
 import Package from "@/models/Package";
 import PackageEnquiry from "@/models/PackageEnquiry";
 import Link from "next/link";
-import { Package as PackageIcon, Eye, CheckCircle, XCircle, Clock, AlertTriangle, Filter } from "lucide-react";
+import { 
+  Package as PackageIcon, 
+  Eye, 
+  CheckCircle, 
+  XCircle, 
+  Clock, 
+  AlertTriangle, 
+  Filter, 
+  Archive 
+} from "lucide-react";
 import PackageImage from "@/components/packages/PackageImage";
+import AdminPackageRowActions from "@/components/admin/AdminPackageRowActions";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +62,8 @@ export default async function AdminPackagesPage({
     pending: await Package.countDocuments({ status: "PENDING_REVIEW" }),
     changes: await Package.countDocuments({ status: "CHANGES_REQUESTED" }),
     published: await Package.countDocuments({ status: "PUBLISHED" }),
-    rejected: await Package.countDocuments({ status: "REJECTED" })
+    rejected: await Package.countDocuments({ status: "REJECTED" }),
+    archived: await Package.countDocuments({ status: "ARCHIVED" })
   };
 
   return (
@@ -61,7 +72,7 @@ export default async function AdminPackagesPage({
         <h1 className="text-3xl font-extrabold text-slate-900 mb-2 flex items-center gap-3">
           <PackageIcon className="text-blue-600" size={32} /> Tour Packages
         </h1>
-        <p className="text-slate-600">Review driver-created packages, manage publishing approvals, and oversee enquiries.</p>
+        <p className="text-slate-600">Review driver-created packages, manage publishing approvals, archive old packages, and oversee enquiries.</p>
       </div>
 
       {/* Filter Tabs */}
@@ -107,6 +118,16 @@ export default async function AdminPackagesPage({
           <CheckCircle size={12} /> Published ({counts.published})
         </Link>
         <Link
+          href="/admin/packages?status=ARCHIVED"
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 ${
+            statusFilter === "ARCHIVED"
+              ? "bg-slate-800 text-white"
+              : "bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300"
+          }`}
+        >
+          <Archive size={12} /> Archived ({counts.archived})
+        </Link>
+        <Link
           href="/admin/packages?status=REJECTED"
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors ${
             statusFilter === "REJECTED"
@@ -128,7 +149,8 @@ export default async function AdminPackagesPage({
           </span>
         </div>
         
-        <div className="overflow-x-auto">
+        {/* Desktop View Table */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-200 text-sm">
             <thead className="bg-slate-50 text-slate-500">
               <tr>
@@ -136,7 +158,7 @@ export default async function AdminPackagesPage({
                 <th className="px-6 py-4 text-left font-bold uppercase tracking-wider text-xs">Driver</th>
                 <th className="px-6 py-4 text-left font-bold uppercase tracking-wider text-xs">Duration & Price</th>
                 <th className="px-6 py-4 text-left font-bold uppercase tracking-wider text-xs">Status</th>
-                <th className="px-6 py-4 text-right font-bold uppercase tracking-wider text-xs">Action</th>
+                <th className="px-6 py-4 text-right font-bold uppercase tracking-wider text-xs">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -187,6 +209,8 @@ export default async function AdminPackagesPage({
                           ? "bg-amber-100 text-amber-900 border border-amber-300 animate-pulse"
                           : pkg.status === "CHANGES_REQUESTED"
                           ? "bg-orange-100 text-orange-900 border border-orange-300"
+                          : pkg.status === "ARCHIVED"
+                          ? "bg-slate-200 text-slate-800 border border-slate-300"
                           : pkg.status === "REJECTED"
                           ? "bg-rose-100 text-rose-800"
                           : "bg-slate-100 text-slate-800"
@@ -194,16 +218,20 @@ export default async function AdminPackagesPage({
                         {pkg.status === "PENDING_REVIEW" && <Clock size={12} />}
                         {pkg.status === "CHANGES_REQUESTED" && <AlertTriangle size={12} />}
                         {pkg.status === "PUBLISHED" && <CheckCircle size={12} />}
+                        {pkg.status === "ARCHIVED" && <Archive size={12} />}
                         {pkg.status.replace(/_/g, " ")}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <Link
-                        href={`/admin/packages/${pkg._id.toString()}`}
-                        className="inline-flex items-center gap-1.5 text-blue-600 hover:text-blue-800 font-bold bg-blue-50 hover:bg-blue-100 px-3.5 py-2 rounded-xl transition-colors text-xs"
-                      >
-                        <Eye size={14} /> Review Package
-                      </Link>
+                      <AdminPackageRowActions
+                        packageId={pkg._id.toString()}
+                        title={pkg.title}
+                        category={pkg.category}
+                        coverPhoto={pkg.coverPhoto}
+                        driverName={pkg.driverId?.name}
+                        status={pkg.status}
+                        revision={pkg.revision}
+                      />
                     </td>
                   </tr>
                 );
@@ -217,6 +245,82 @@ export default async function AdminPackagesPage({
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile View Cards */}
+        <div className="md:hidden divide-y divide-slate-100">
+          {packages.map((pkg: any) => {
+            const currency = pkg.costs?.currency || "LKR";
+            const price = pkg.costs?.totalStartingPrice || pkg.costs?.basePrice || pkg.price || 0;
+            const pricingBasis = pkg.costs?.priceType ? pkg.costs.priceType.replace(/_/g, " ") : "Per Vehicle";
+
+            return (
+              <div key={pkg._id.toString()} className="p-4 space-y-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-16 h-14 rounded-xl overflow-hidden shrink-0 border border-slate-200 bg-slate-100">
+                    <PackageImage
+                      src={pkg.coverPhoto}
+                      alt={pkg.title}
+                      category={pkg.category}
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-bold text-slate-900 text-sm truncate">{pkg.title}</div>
+                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                      <span className="text-[10px] font-extrabold text-blue-700 bg-blue-50 px-2 py-0.5 rounded uppercase">
+                        {pkg.category}
+                      </span>
+                      <span className="text-[10px] font-bold text-slate-500">
+                        Rev {pkg.revision || 1}
+                      </span>
+                    </div>
+                    <div className="text-xs text-slate-500 mt-1">
+                      By <span className="font-semibold text-slate-700">{pkg.driverId?.name || "Driver"}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-1 text-xs">
+                  <div className="font-semibold text-slate-700">
+                    {pkg.days}D / {pkg.nights ?? Math.max(0, pkg.days - 1)}N &bull; <span className="text-emerald-700 font-bold">{currency} {price.toLocaleString()}</span> <span className="text-[10px] text-slate-400">({pricingBasis})</span>
+                  </div>
+                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 text-[10px] font-bold rounded-full uppercase ${
+                    pkg.status === "PUBLISHED"
+                      ? "bg-emerald-100 text-emerald-800"
+                      : pkg.status === "PENDING_REVIEW"
+                      ? "bg-amber-100 text-amber-900 border border-amber-300"
+                      : pkg.status === "CHANGES_REQUESTED"
+                      ? "bg-orange-100 text-orange-900 border border-orange-300"
+                      : pkg.status === "ARCHIVED"
+                      ? "bg-slate-200 text-slate-800 border border-slate-300"
+                      : pkg.status === "REJECTED"
+                      ? "bg-rose-100 text-rose-800"
+                      : "bg-slate-100 text-slate-800"
+                  }`}>
+                    {pkg.status === "ARCHIVED" && <Archive size={10} />}
+                    {pkg.status.replace(/_/g, " ")}
+                  </span>
+                </div>
+
+                <div className="pt-2 border-t border-slate-100">
+                  <AdminPackageRowActions
+                    packageId={pkg._id.toString()}
+                    title={pkg.title}
+                    category={pkg.category}
+                    coverPhoto={pkg.coverPhoto}
+                    driverName={pkg.driverId?.name}
+                    status={pkg.status}
+                    revision={pkg.revision}
+                  />
+                </div>
+              </div>
+            );
+          })}
+          {packages.length === 0 && (
+            <div className="p-8 text-center text-slate-500 text-sm">
+              No packages match the current filter.
+            </div>
+          )}
         </div>
       </div>
 

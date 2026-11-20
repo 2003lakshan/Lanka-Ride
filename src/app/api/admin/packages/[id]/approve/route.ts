@@ -22,7 +22,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     // Support both direct status strings and action verbs
     let targetStatus: string;
-    let reviewAction: "APPROVE" | "REQUEST_CHANGES" | "REJECT";
+    let reviewAction: "APPROVE" | "REQUEST_CHANGES" | "REJECT" | "ARCHIVE" | "RESTORE";
 
     if (action === "APPROVE" || status === "PUBLISHED") {
       targetStatus = "PUBLISHED";
@@ -33,9 +33,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     } else if (action === "REJECT" || status === "REJECTED") {
       targetStatus = "REJECTED";
       reviewAction = "REJECT";
+    } else if (action === "ARCHIVE" || status === "ARCHIVED") {
+      targetStatus = "ARCHIVED";
+      reviewAction = "ARCHIVE";
+    } else if (action === "RESTORE") {
+      targetStatus = "RESTORE";
+      reviewAction = "RESTORE";
     } else {
       return NextResponse.json(
-        { error: "Invalid action. Expected APPROVE, REQUEST_CHANGES, or REJECT." },
+        { error: "Invalid action. Expected APPROVE, REQUEST_CHANGES, REJECT, ARCHIVE, or RESTORE." },
         { status: 400 }
       );
     }
@@ -87,6 +93,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       revision: currentRevision
     };
 
+    if (reviewAction === "RESTORE") {
+      targetStatus = (pkg.approvedRevision && pkg.approvedRevision === currentRevision) ? "PUBLISHED" : "DRAFT";
+    }
+
     pkg.status = targetStatus;
     pkg.reviewHistory = pkg.reviewHistory || [];
     pkg.reviewHistory.push(reviewLog as any);
@@ -132,6 +142,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           ? ` [Sections: ${pkg.changeRequest.affectedFields.join(", ")}]`
           : "";
         notifMessage = `Admin requested adjustments on your package "${packageTitle}"${sectionsNote}: ${note}`;
+      } else if (reviewAction === "ARCHIVE") {
+        notifTitle = "Package Archived";
+        notifMessage = `Your travel package "${packageTitle}" has been archived by administrator.`;
+      } else if (reviewAction === "RESTORE") {
+        notifTitle = "Package Restored";
+        notifMessage = `Your travel package "${packageTitle}" has been restored to ${targetStatus} by administrator.`;
       } else {
         notifTitle = "Package Review Rejected";
         notifMessage = `Your travel package "${packageTitle}" was rejected: ${note}`;

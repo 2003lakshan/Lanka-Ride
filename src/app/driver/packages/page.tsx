@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import dbConnect from "@/lib/mongodb";
 import Package from "@/models/Package";
 import Link from "next/link";
-import { Plus, Package as PackageIcon, Clock, CheckCircle, XCircle, PauseCircle, AlertTriangle, MapPin, Calendar, Users } from "lucide-react";
+import { Plus, Package as PackageIcon, Clock, CheckCircle, XCircle, PauseCircle, AlertTriangle, MapPin, Calendar, Users, Archive } from "lucide-react";
 import PackageImage from "@/components/packages/PackageImage";
 
 export const dynamic = "force-dynamic";
@@ -52,6 +52,12 @@ export default async function DriverPackagesPage() {
         return (
           <span className="px-3 py-1 bg-slate-200 text-slate-800 rounded-full text-xs font-bold border border-slate-300 flex items-center gap-1 shadow-xs">
             <PauseCircle size={12} /> Paused
+          </span>
+        );
+      case "ARCHIVED":
+        return (
+          <span className="px-3 py-1 bg-slate-200 text-slate-800 rounded-full text-xs font-bold border border-slate-300 flex items-center gap-1 shadow-xs">
+            <Archive size={12} /> Archived
           </span>
         );
       case "REJECTED":

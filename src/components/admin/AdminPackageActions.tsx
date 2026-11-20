@@ -2,21 +2,46 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle, XCircle, AlertCircle, RefreshCw, MessageSquare } from "lucide-react";
+import { 
+  CheckCircle, 
+  XCircle, 
+  AlertCircle, 
+  MessageSquare, 
+  Archive, 
+  RotateCcw, 
+  Trash2, 
+  Loader2 
+} from "lucide-react";
+import AdminPackageDeleteModal from "./AdminPackageDeleteModal";
 
 interface AdminPackageActionsProps {
   packageId: string;
   status: string;
   revision?: number;
+  packageTitle?: string;
+  category?: string;
+  coverPhoto?: string;
+  driverName?: string;
 }
 
-export default function AdminPackageActions({ packageId, status, revision = 1 }: AdminPackageActionsProps) {
+export default function AdminPackageActions({ 
+  packageId, 
+  status, 
+  revision = 1,
+  packageTitle = "Tour Package",
+  category,
+  coverPhoto,
+  driverName
+}: AdminPackageActionsProps) {
   const [loading, setLoading] = useState(false);
-  const [modalMode, setModalMode] = useState<"CHANGES" | "REJECT" | null>(null);
+  const [modalMode, setModalMode] = useState<"CHANGES" | "REJECT" | "ARCHIVE" | null>(null);
   const [feedbackText, setFeedbackText] = useState("");
   const [selectedSections, setSelectedSections] = useState<string[]>([]);
   const [errorMsg, setErrorMsg] = useState("");
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const router = useRouter();
+
+  const isArchived = status === "ARCHIVED";
 
   const STANDARD_SECTIONS = [
     "Basics & Photos",
@@ -35,7 +60,7 @@ export default function AdminPackageActions({ packageId, status, revision = 1 }:
     );
   };
 
-  const handleAction = async (action: "APPROVE" | "REQUEST_CHANGES" | "REJECT", customText?: string) => {
+  const handleAction = async (action: "APPROVE" | "REQUEST_CHANGES" | "REJECT" | "ARCHIVE" | "RESTORE", customText?: string) => {
     setLoading(true);
     setErrorMsg("");
 
@@ -60,9 +85,16 @@ export default function AdminPackageActions({ packageId, status, revision = 1 }:
           return;
         }
         payload.reason = customText.trim();
+      } else if (action === "ARCHIVE") {
+        payload.reason = customText?.trim() || "Archived by Administrator";
       }
 
-      const res = await fetch(`/api/admin/packages/${packageId}/approve`, {
+      // Use the comprehensive admin package endpoint
+      const endpoint = (action === "ARCHIVE" || action === "RESTORE")
+        ? `/api/admin/packages/${packageId}`
+        : `/api/admin/packages/${packageId}/approve`;
+
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -74,7 +106,7 @@ export default function AdminPackageActions({ packageId, status, revision = 1 }:
         if (res.status === 409) {
           alert(`Conflict: ${data.error}`);
         } else {
-          setErrorMsg(data.error || "Failed to process review.");
+          setErrorMsg(data.error || "Failed to process review action.");
         }
       } else {
         setModalMode(null);
@@ -90,38 +122,43 @@ export default function AdminPackageActions({ packageId, status, revision = 1 }:
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-        {status !== "PUBLISHED" && (
+      <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+        {/* Approve & Publish (only if not published and not archived) */}
+        {!isArchived && status !== "PUBLISHED" && (
           <button
             onClick={() => handleAction("APPROVE")}
             disabled={loading}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition-all shadow-sm hover:shadow-md disabled:opacity-50 cursor-pointer"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-1.5 transition-all shadow-sm hover:shadow-md disabled:opacity-50 cursor-pointer"
           >
-            <CheckCircle size={18} />
+            <CheckCircle size={16} />
             <span>{loading ? "Processing..." : "Approve & Publish"}</span>
           </button>
         )}
 
         {status === "PUBLISHED" && (
-          <span className="bg-emerald-100 text-emerald-800 border border-emerald-200 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5">
-            <CheckCircle size={16} /> Live & Published (v{revision})
+          <span className="bg-emerald-100 text-emerald-800 border border-emerald-200 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5">
+            <CheckCircle size={15} /> Live & Published (v{revision})
           </span>
         )}
 
-        <button
-          onClick={() => {
-            setErrorMsg("");
-            setFeedbackText("");
-            setModalMode("CHANGES");
-          }}
-          disabled={loading}
-          className="bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 px-3.5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition-colors disabled:opacity-50 cursor-pointer"
-        >
-          <MessageSquare size={16} />
-          <span>Request Changes</span>
-        </button>
+        {/* Request Changes (only if not archived) */}
+        {!isArchived && (
+          <button
+            onClick={() => {
+              setErrorMsg("");
+              setFeedbackText("");
+              setModalMode("CHANGES");
+            }}
+            disabled={loading}
+            className="bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 px-3 py-2 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
+          >
+            <MessageSquare size={15} />
+            <span>Request Changes</span>
+          </button>
+        )}
 
-        {status !== "REJECTED" && (
+        {/* Reject Package (only if not rejected and not archived) */}
+        {!isArchived && status !== "REJECTED" && (
           <button
             onClick={() => {
               setErrorMsg("");
@@ -129,15 +166,70 @@ export default function AdminPackageActions({ packageId, status, revision = 1 }:
               setModalMode("REJECT");
             }}
             disabled={loading}
-            className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 px-3.5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition-colors disabled:opacity-50 cursor-pointer"
+            className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 px-3 py-2 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
           >
-            <XCircle size={16} />
-            <span>Reject Package</span>
+            <XCircle size={15} />
+            <span>Reject</span>
           </button>
         )}
+
+        {/* Archive or Restore */}
+        {isArchived ? (
+          <button
+            onClick={() => handleAction("RESTORE")}
+            disabled={loading}
+            className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 px-3.5 py-2 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
+          >
+            {loading ? <Loader2 size={15} className="animate-spin" /> : <RotateCcw size={15} />}
+            <span>Restore Package</span>
+          </button>
+        ) : (
+          <button
+            onClick={() => {
+              setErrorMsg("");
+              setFeedbackText("");
+              setModalMode("ARCHIVE");
+            }}
+            disabled={loading}
+            className="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 px-3 py-2 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
+          >
+            <Archive size={15} />
+            <span>Archive</span>
+          </button>
+        )}
+
+        {/* Delete Package (Opens confirmation modal with checks) */}
+        <button
+          onClick={() => setDeleteModalOpen(true)}
+          disabled={loading}
+          className="bg-rose-600 hover:bg-rose-700 text-white px-3 py-2 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-1.5 transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
+        >
+          <Trash2 size={15} />
+          <span>Delete</span>
+        </button>
       </div>
 
-      {/* Modal for Requesting Changes or Rejecting */}
+      {/* Delete/Archive Guard Confirmation Modal */}
+      <AdminPackageDeleteModal
+        pkg={{
+          _id: packageId,
+          title: packageTitle,
+          category,
+          coverPhoto,
+          driverName,
+          status
+        }}
+        isOpen={deleteModalOpen}
+        onClose={() => setDeleteModalOpen(false)}
+        onDeleted={() => {
+          router.push("/admin/packages");
+        }}
+        onArchived={() => {
+          router.refresh();
+        }}
+      />
+
+      {/* Modal for Requesting Changes, Rejecting, or Archiving */}
       {modalMode && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
           <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
@@ -146,6 +238,11 @@ export default function AdminPackageActions({ packageId, status, revision = 1 }:
                 <>
                   <MessageSquare className="text-amber-600" />
                   Request Package Changes
+                </>
+              ) : modalMode === "ARCHIVE" ? (
+                <>
+                  <Archive className="text-slate-700" />
+                  Archive Tour Package
                 </>
               ) : (
                 <>
@@ -157,7 +254,9 @@ export default function AdminPackageActions({ packageId, status, revision = 1 }:
             
             <p className="text-sm text-slate-600 mb-4">
               {modalMode === "CHANGES"
-                ? "Provide detailed feedback explaining what the driver needs to adjust (e.g. pricing basis, vehicle capacity, or itinerary details). The driver can edit and resubmit."
+                ? "Provide detailed feedback explaining what the driver needs to adjust. The driver can edit and resubmit."
+                : modalMode === "ARCHIVE"
+                ? "Archiving will hide this package from traveller discovery and prevent new bookings. Existing bookings remain intact."
                 : "State the specific reason for rejecting this travel package. This will be sent directly to the driver."}
             </p>
 
@@ -198,15 +297,21 @@ export default function AdminPackageActions({ packageId, status, revision = 1 }:
 
             <div className="mb-6">
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                {modalMode === "CHANGES" ? "Change Request Feedback *" : "Rejection Reason *"}
+                {modalMode === "CHANGES"
+                  ? "Change Request Feedback *"
+                  : modalMode === "ARCHIVE"
+                  ? "Archive Note / Reason (Optional)"
+                  : "Rejection Reason *"}
               </label>
               <textarea
-                rows={4}
+                rows={modalMode === "ARCHIVE" ? 3 : 4}
                 value={feedbackText}
                 onChange={(e) => setFeedbackText(e.target.value)}
                 placeholder={
                   modalMode === "CHANGES"
                     ? "e.g., Please clarify whether admission tickets to Sigiriya are included, and specify the day 2 overnight location."
+                    : modalMode === "ARCHIVE"
+                    ? "e.g., Seasonal tour retired for this year."
                     : "e.g., Package does not meet quality guidelines or pricing is significantly inconsistent with vehicle type."
                 }
                 className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-sm transition-all"
@@ -224,13 +329,23 @@ export default function AdminPackageActions({ packageId, status, revision = 1 }:
               </button>
               <button
                 type="button"
-                onClick={() => handleAction(modalMode === "CHANGES" ? "REQUEST_CHANGES" : "REJECT", feedbackText)}
-                disabled={loading || !feedbackText.trim()}
+                onClick={() => handleAction(modalMode === "CHANGES" ? "REQUEST_CHANGES" : (modalMode as "REJECT" | "ARCHIVE"), feedbackText)}
+                disabled={loading || ((modalMode === "CHANGES" || modalMode === "REJECT") && !feedbackText.trim())}
                 className={`px-5 py-2.5 rounded-xl font-bold text-sm text-white transition-all shadow-sm disabled:opacity-50 cursor-pointer ${
-                  modalMode === "CHANGES" ? "bg-amber-600 hover:bg-amber-700" : "bg-rose-600 hover:bg-rose-700"
+                  modalMode === "CHANGES" 
+                    ? "bg-amber-600 hover:bg-amber-700" 
+                    : modalMode === "ARCHIVE"
+                    ? "bg-slate-800 hover:bg-slate-900"
+                    : "bg-rose-600 hover:bg-rose-700"
                 }`}
               >
-                {loading ? "Submitting..." : modalMode === "CHANGES" ? "Send Change Request" : "Confirm Rejection"}
+                {loading
+                  ? "Submitting..."
+                  : modalMode === "CHANGES"
+                  ? "Send Change Request"
+                  : modalMode === "ARCHIVE"
+                  ? "Confirm Archive"
+                  : "Confirm Rejection"}
               </button>
             </div>
           </div>

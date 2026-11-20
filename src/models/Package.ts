@@ -61,7 +61,7 @@ export interface IPackageCosts {
 }
 
 export interface IPackageReviewLog {
-  action: "SUBMIT" | "APPROVE" | "REQUEST_CHANGES" | "REJECT" | "RESUBMIT";
+  action: "SUBMIT" | "APPROVE" | "REQUEST_CHANGES" | "REJECT" | "RESUBMIT" | "ARCHIVE" | "RESTORE";
   feedback?: string;
   actorId?: mongoose.Types.ObjectId | string;
   actorRole?: "ADMIN" | "DRIVER";
@@ -273,7 +273,7 @@ const PackageSchema = new Schema(
     },
     rejectionReason: { type: String },
     reviewHistory: [{
-      action: { type: String, enum: ["SUBMIT", "APPROVE", "REQUEST_CHANGES", "REJECT", "RESUBMIT"] },
+      action: { type: String, enum: ["SUBMIT", "APPROVE", "REQUEST_CHANGES", "REJECT", "RESUBMIT", "ARCHIVE", "RESTORE"] },
       feedback: { type: String },
       actorId: { type: Schema.Types.ObjectId, ref: "User" },
       actorRole: { type: String, enum: ["ADMIN", "DRIVER"] },
@@ -292,5 +292,9 @@ const PackageSchema = new Schema(
   },
   { timestamps: true }
 );
+
+if (mongoose.models.Package) {
+  delete mongoose.models.Package;
+}
 
 export default mongoose.models.Package || mongoose.model<IPackage>("Package", PackageSchema);

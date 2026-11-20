@@ -25,6 +25,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Package not found" }, { status: 404 });
     }
 
+    if (pkg.status !== "PUBLISHED") {
+      return NextResponse.json({ error: "Enquiries are only permitted on active, published packages." }, { status: 400 });
+    }
+
     // Check if an active enquiry already exists
     const existingEnquiry = await PackageEnquiry.findOne({
       riderId: (session.user as any).id,
