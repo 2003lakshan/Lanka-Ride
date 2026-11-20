@@ -39,7 +39,7 @@ export default async function AdminPackageDetailsPage({ params }: { params: Prom
   await dbConnect();
   
   const pkg = await Package.findById(id)
-    .populate('driverId', 'name email phoneNumber vehicleRegistration vehicleCategory driverDetails')
+    .populate('driverId', 'name email phoneNumber profilePhoto vehicleRegistration vehicleCategory driverDetails isApproved rating reviewCount completedTripsCount identityStatus')
     .populate('vehicleTypeId', 'name maxPassengers maxLuggage fuelType')
     .lean();
 
@@ -252,9 +252,25 @@ export default async function AdminPackageDetailsPage({ params }: { params: Prom
                           <strong className="text-slate-800">Stop Duration:</strong> {day.stopDuration || "~1 hour"}
                         </div>
                         <div>
-                          <strong className="text-slate-800">Accommodation:</strong> {day.accommodationDetails || "Not included / By traveller"}
+                          <strong className="text-slate-800">Overnight:</strong> {day.overnightLocation || "Not specified"}
                         </div>
                       </div>
+
+                      {day.accommodationDetails && (
+                        <div className="text-xs text-slate-600 bg-blue-50/50 p-2.5 rounded-xl border border-blue-100 mb-2">
+                          <strong className="text-blue-900">Hotel & Accommodation:</strong> {day.accommodationDetails}
+                        </div>
+                      )}
+
+                      {/* Daily Meal Plan */}
+                      {day.meals && (day.meals.breakfast || day.meals.lunch || day.meals.dinner) && (
+                        <div className="text-xs text-slate-600 bg-amber-50/50 p-2.5 rounded-xl border border-amber-100 mb-2 flex items-center gap-3">
+                          <strong className="text-amber-900">Meals:</strong>
+                          <span>Breakfast: {day.meals.breakfast || "Not included"}</span> &bull;
+                          <span>Lunch: {day.meals.lunch || "Not included"}</span> &bull;
+                          <span>Dinner: {day.meals.dinner || "Not included"}</span>
+                        </div>
+                      )}
 
                       {day.notes && (
                         <p className="text-xs text-slate-500 italic mt-2">
@@ -315,10 +331,180 @@ export default async function AdminPackageDetailsPage({ params }: { params: Prom
               </div>
             </div>
 
+            {/* Amenities & Refreshments Breakdown */}
+            <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                    <Sparkles className="text-blue-600" size={20} /> Amenities & Refreshments
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Included provisions and optional paid extras configured by the driver.
+                  </p>
+                </div>
+                <span className="text-xs font-bold px-3 py-1 bg-blue-50 text-blue-700 rounded-full">
+                  {pkg.amenities?.length || 0} Items
+                </span>
+              </div>
+
+              {pkg.amenities && pkg.amenities.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                  {pkg.amenities.map((item: any, idx: number) => {
+                    const coverageLabel = item.coverage === "PER_PERSON_PER_DAY"
+                      ? "Per Person / Day"
+                      : item.coverage === "PER_PERSON_PER_TRIP"
+                      ? "Per Person / Trip"
+                      : "Per Vehicle";
+
+                    return (
+                      <div
+                        key={item.id || idx}
+                        className={`p-4 rounded-2xl border ${
+                          item.isIncluded
+                            ? "bg-emerald-50/40 border-emerald-200"
+                            : "bg-amber-50/40 border-amber-200"
+                        } flex flex-col justify-between`}
+                      >
+                        <div>
+                          <div className="flex items-start justify-between gap-2 mb-1.5">
+                            <h4 className="font-bold text-slate-900 text-sm">{item.name}</h4>
+                            <span
+                              className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
+                                item.isIncluded
+                                  ? "bg-emerald-200 text-emerald-900"
+                                  : "bg-amber-200 text-amber-900"
+                              }`}
+                            >
+                              {item.isIncluded ? "Included" : "Extra Charge"}
+                            </span>
+                          </div>
+
+                          <div className="text-xs text-slate-600 space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-slate-700">
+                                {item.quantity ? `${item.quantity} ${item.unit || "units"}` : "Standard supply"}
+                              </span>
+                              &bull;
+                              <span className="text-slate-500">{coverageLabel}</span>
+                            </div>
+                            {item.description && (
+                              <p className="text-slate-500 text-[11px] leading-relaxed pt-0.5">
+                                {item.description}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {!item.isIncluded && (
+                          <div className="mt-3 pt-2 border-t border-amber-200/60 flex items-center justify-between text-xs font-bold text-amber-900">
+                            <span>Extra Cost:</span>
+                            <span>
+                              {item.currency || currency} {item.price?.toLocaleString()} ({item.chargingBasis?.replace(/_/g, " ").toLowerCase() || "per person"})
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-500 italic p-3 bg-slate-50 rounded-xl">
+                  No specific amenities configured. Standard vehicle inclusions apply.
+                </p>
+              )}
+            </div>
+
           </div>
 
-          {/* Right Sidebar: Vehicle & Pricing & Terms (1 col) */}
+          {/* Right Sidebar: Driver Profile, Vehicle & Pricing & Terms (1 col) */}
           <div className="space-y-6">
+
+            {/* Driver Profile & Verification Card */}
+            <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <ShieldCheck className="text-blue-600" size={20} /> Driver Profile
+                </h3>
+                {pkg.driverId?.isApproved ? (
+                  <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                    Verified Host
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                    Pending Verification
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-blue-600 text-white font-extrabold flex items-center justify-center text-lg overflow-hidden shrink-0 shadow-xs">
+                  {pkg.driverId?.profilePhoto ? (
+                    <img src={pkg.driverId.profilePhoto} alt={pkg.driverId.name} className="w-full h-full object-cover" />
+                  ) : (
+                    pkg.driverId?.name?.[0] || "D"
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <h4 className="font-extrabold text-slate-900 text-base truncate">{pkg.driverId?.name || "Driver Host"}</h4>
+                  <p className="text-xs text-slate-500 truncate">{pkg.driverId?.email}</p>
+                </div>
+              </div>
+
+              {/* Public Stats */}
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+                  <span className="text-slate-400 font-bold block text-[10px] uppercase">Rating</span>
+                  <span className="font-extrabold text-slate-800">
+                    ★ {pkg.driverId?.rating?.toFixed(1) || "5.0"} ({pkg.driverId?.reviewCount || 0})
+                  </span>
+                </div>
+                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+                  <span className="text-slate-400 font-bold block text-[10px] uppercase">Trips Completed</span>
+                  <span className="font-extrabold text-slate-800">{pkg.driverId?.completedTripsCount || 0} rides</span>
+                </div>
+              </div>
+
+              {/* Self-reported Experience & Home */}
+              <div className="text-xs text-slate-600 space-y-1.5 pt-1 border-t border-slate-100">
+                {pkg.driverId?.driverDetails?.yearsOfExperience ? (
+                  <div>
+                    <span className="font-bold text-slate-700">Experience: </span>
+                    <span className="text-slate-500">Self-reported: {pkg.driverId.driverDetails.yearsOfExperience} years driving & tours</span>
+                  </div>
+                ) : null}
+                {pkg.driverId?.driverDetails?.homeCity && (
+                  <div>
+                    <span className="font-bold text-slate-700">Home Base: </span>
+                    <span>{pkg.driverId.driverDetails.homeCity}</span>
+                  </div>
+                )}
+                {pkg.driverId?.driverDetails?.languagesSpoken && (
+                  <div>
+                    <span className="font-bold text-slate-700">Languages: </span>
+                    <span>
+                      {Array.isArray(pkg.driverId.driverDetails.languagesSpoken)
+                        ? pkg.driverId.driverDetails.languagesSpoken.join(", ")
+                        : pkg.driverId.driverDetails.languagesSpoken}
+                    </span>
+                  </div>
+                )}
+                {pkg.driverId?.driverDetails?.shortBio && (
+                  <p className="text-slate-500 italic text-[11px] pt-1">
+                    &ldquo;{pkg.driverId.driverDetails.shortBio}&rdquo;
+                  </p>
+                )}
+              </div>
+
+              {/* Inspect Private Admin Documents Link */}
+              <div className="pt-2">
+                <Link
+                  href={`/admin/users/${pkg.driverId?._id}`}
+                  className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition-colors"
+                >
+                  Inspect Driver Documents & License &rarr;
+                </Link>
+              </div>
+            </div>
             
             {/* Vehicle Card */}
             <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200">

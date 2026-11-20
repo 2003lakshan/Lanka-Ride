@@ -14,8 +14,26 @@ export default function AdminPackageActions({ packageId, status, revision = 1 }:
   const [loading, setLoading] = useState(false);
   const [modalMode, setModalMode] = useState<"CHANGES" | "REJECT" | null>(null);
   const [feedbackText, setFeedbackText] = useState("");
+  const [selectedSections, setSelectedSections] = useState<string[]>([]);
   const [errorMsg, setErrorMsg] = useState("");
   const router = useRouter();
+
+  const STANDARD_SECTIONS = [
+    "Basics & Photos",
+    "Itinerary & Logistics",
+    "Hotel Details & Meals",
+    "Vehicle & Pricing",
+    "Amenities & Refreshments",
+    "Inclusions & Exclusions",
+    "Policies & Terms",
+    "Driver Profile Info"
+  ];
+
+  const toggleSection = (section: string) => {
+    setSelectedSections(prev =>
+      prev.includes(section) ? prev.filter(s => s !== section) : [...prev, section]
+    );
+  };
 
   const handleAction = async (action: "APPROVE" | "REQUEST_CHANGES" | "REJECT", customText?: string) => {
     setLoading(true);
@@ -34,6 +52,7 @@ export default function AdminPackageActions({ packageId, status, revision = 1 }:
           return;
         }
         payload.feedback = customText.trim();
+        payload.affectedSections = selectedSections;
       } else if (action === "REJECT") {
         if (!customText?.trim()) {
           setErrorMsg("Please provide a reason for rejection.");
@@ -145,6 +164,35 @@ export default function AdminPackageActions({ packageId, status, revision = 1 }:
             {errorMsg && (
               <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-xl text-sm font-semibold border border-red-200">
                 {errorMsg}
+              </div>
+            )}
+
+            {modalMode === "CHANGES" && (
+              <div className="mb-4">
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                  Select Affected Sections (Optional)
+                </label>
+                <div className="grid grid-cols-2 gap-2 p-3 bg-slate-50 rounded-2xl border border-slate-200">
+                  {STANDARD_SECTIONS.map((sec) => {
+                    const checked = selectedSections.includes(sec);
+                    return (
+                      <label
+                        key={sec}
+                        className={`flex items-center gap-2 p-2 rounded-xl text-xs font-semibold cursor-pointer transition-colors ${
+                          checked ? "bg-amber-100 text-amber-900 border border-amber-300" : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleSection(sec)}
+                          className="w-3.5 h-3.5 text-amber-600 rounded"
+                        />
+                        <span className="truncate">{sec}</span>
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
             )}
 

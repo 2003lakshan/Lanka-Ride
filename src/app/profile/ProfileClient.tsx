@@ -27,8 +27,16 @@ export default function ProfileClient({ initialUser, sessionHasPassword }: { ini
     vehicleRegistration: initialUser.vehicleRegistration || "",
     vehicleMake: initialUser.driverDetails?.vehicleMake || "",
     vehicleModel: initialUser.driverDetails?.vehicleModel || "",
-    languagesSpoken: initialUser.driverDetails?.languagesSpoken || "",
+    languagesSpoken: Array.isArray(initialUser.driverDetails?.languagesSpoken)
+      ? initialUser.driverDetails.languagesSpoken.join(", ")
+      : (initialUser.driverDetails?.languagesSpoken || ""),
     areasServed: initialUser.driverDetails?.areasServed || "",
+    shortBio: initialUser.driverDetails?.shortBio || "",
+    yearsOfExperience: initialUser.driverDetails?.yearsOfExperience ?? "",
+    homeCity: initialUser.driverDetails?.homeCity || "",
+    specialities: Array.isArray(initialUser.driverDetails?.specialities)
+      ? initialUser.driverDetails.specialities.join(", ")
+      : (initialUser.driverDetails?.specialities || ""),
     nicOrPassportNumber: initialUser.driverDetails?.nicOrPassportNumber || "",
     licenseExpiryDate: initialUser.driverDetails?.licenseExpiryDate || "",
     insurancePolicyNumber: initialUser.driverDetails?.insurancePolicyNumber || "",
@@ -82,8 +90,12 @@ export default function ProfileClient({ initialUser, sessionHasPassword }: { ini
         payload.driverDetails = {
           vehicleMake: formData.vehicleMake,
           vehicleModel: formData.vehicleModel,
-          languagesSpoken: formData.languagesSpoken,
+          languagesSpoken: formData.languagesSpoken ? formData.languagesSpoken.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
           areasServed: formData.areasServed,
+          shortBio: formData.shortBio,
+          yearsOfExperience: formData.yearsOfExperience !== "" ? Number(formData.yearsOfExperience) : undefined,
+          homeCity: formData.homeCity,
+          specialities: formData.specialities ? formData.specialities.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
           nicOrPassportNumber: formData.nicOrPassportNumber,
           licenseExpiryDate: formData.licenseExpiryDate,
           insurancePolicyNumber: formData.insurancePolicyNumber,
@@ -342,6 +354,119 @@ export default function ProfileClient({ initialUser, sessionHasPassword }: { ini
             </div>
           )}
         </div>
+
+        {/* Driver Public Profile (Meet Your Driver) */}
+        {isDriver && (
+          <div>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 border-b border-slate-100 pb-2">
+              <div>
+                <h2 className="text-xl font-bold text-slate-800">Tour Host & Public Profile (“Meet Your Driver”)</h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  These details are displayed on your travel packages and public driver profile for travellers to learn about you.
+                </p>
+              </div>
+              <span className="text-xs font-bold px-3 py-1 bg-blue-50 text-blue-700 rounded-full mt-2 sm:mt-0">
+                Publicly Visible
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="md:col-span-2">
+                <label className="block text-sm font-bold text-slate-700 mb-2">
+                  Short Introduction / Bio
+                </label>
+                <textarea
+                  name="shortBio"
+                  rows={3}
+                  value={formData.shortBio}
+                  onChange={e => {
+                    setFormData({ ...formData, shortBio: e.target.value });
+                    setMessage({ type: "", text: "" });
+                  }}
+                  placeholder="Tell travellers about yourself, your driving career, and your enthusiasm for showing the beauties of Sri Lanka..."
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">
+                  Years of Driving & Tour Experience
+                </label>
+                <p className="text-[11px] text-slate-400 mb-2">Clearly labeled as self-reported on your public package profile.</p>
+                <input
+                  type="number"
+                  min={0}
+                  max={50}
+                  name="yearsOfExperience"
+                  value={formData.yearsOfExperience}
+                  onChange={handleInputChange}
+                  placeholder="e.g. 8"
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">
+                  Home City
+                </label>
+                <p className="text-[11px] text-slate-400 mb-2">Your base city in Sri Lanka (e.g. Kandy, Negombo, Galle).</p>
+                <input
+                  type="text"
+                  name="homeCity"
+                  value={formData.homeCity}
+                  onChange={handleInputChange}
+                  placeholder="e.g. Kandy"
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">
+                  Operating Areas / Regional Coverage
+                </label>
+                <p className="text-[11px] text-slate-400 mb-2">Areas or routes you specialize in driving.</p>
+                <input
+                  type="text"
+                  name="areasServed"
+                  value={formData.areasServed}
+                  onChange={handleInputChange}
+                  placeholder="e.g. Island-wide, Hill Country, Cultural Triangle"
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">
+                  Tour Specialities & Local Knowledge
+                </label>
+                <p className="text-[11px] text-slate-400 mb-2">Comma separated (e.g. Wildlife Safaris, Ancient Temples, Tea Country).</p>
+                <input
+                  type="text"
+                  name="specialities"
+                  value={formData.specialities}
+                  onChange={handleInputChange}
+                  placeholder="e.g. Wildlife Safaris, Ancient Cities, Photography Spots"
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-bold text-slate-700 mb-1">
+                  Languages Spoken
+                </label>
+                <p className="text-[11px] text-slate-400 mb-2">Comma separated (e.g. English, Sinhala, German, Tamil).</p>
+                <input
+                  type="text"
+                  name="languagesSpoken"
+                  value={formData.languagesSpoken}
+                  onChange={handleInputChange}
+                  placeholder="e.g. English, Sinhala, German"
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                />
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Driver Specific Information */}
         {isDriver && (

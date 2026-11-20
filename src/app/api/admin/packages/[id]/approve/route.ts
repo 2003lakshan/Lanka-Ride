@@ -18,7 +18,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const adminName = (session.user as any).name || "Administrator";
 
     const body = await request.json();
-    const { action, status, feedback, reason, expectedRevision } = body;
+    const { action, status, feedback, reason, expectedRevision, affectedSections, affectedFields } = body;
 
     // Support both direct status strings and action verbs
     let targetStatus: string;
@@ -96,10 +96,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       pkg.changeRequest = undefined;
       pkg.rejectionReason = "";
     } else if (reviewAction === "REQUEST_CHANGES") {
+      const affected = Array.isArray(affectedSections)
+        ? affectedSections
+        : Array.isArray(affectedFields)
+        ? affectedFields
+        : [];
       pkg.changeRequest = {
         feedback: note,
+        affectedFields: affected,
         requestedAt: new Date(),
         requestedBy: adminId,
+        requestedByName: adminName,
         revision: currentRevision
       };
     } else if (reviewAction === "REJECT") {
@@ -121,7 +128,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         notifMessage = `Your travel package "${packageTitle}" has been approved by admin and is now live for travellers to book.`;
       } else if (reviewAction === "REQUEST_CHANGES") {
         notifTitle = "Changes Requested on Package";
-        notifMessage = `Admin requested adjustments on your package "${packageTitle}": ${note}`;
+        const sectionsNote = pkg.changeRequest?.affectedFields && pkg.changeRequest.affectedFields.length > 0
+          ? ` [Sections: ${pkg.changeRequest.affectedFields.join(", ")}]`
+          : "";
+        notifMessage = `Admin requested adjustments on your package "${packageTitle}"${sectionsNote}: ${note}`;
       } else {
         notifTitle = "Package Review Rejected";
         notifMessage = `Your travel package "${packageTitle}" was rejected: ${note}`;

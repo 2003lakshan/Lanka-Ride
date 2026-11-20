@@ -51,6 +51,19 @@ interface PackageBookingModalProps {
       maxPassengers: number;
       maxLuggage: number;
     };
+    amenities?: Array<{
+      id?: string;
+      name: string;
+      category?: string;
+      isIncluded: boolean;
+      quantity?: number;
+      unit?: string;
+      coverage: "PER_PERSON_PER_DAY" | "PER_PERSON_PER_TRIP" | "PER_VEHICLE";
+      description?: string;
+      price?: number;
+      currency?: "LKR" | "USD";
+      chargingBasis?: "PER_PERSON" | "PER_VEHICLE" | "PER_ITEM";
+    }>;
     driverId?: {
       _id: string;
       name: string;
@@ -102,6 +115,14 @@ export default function PackageBookingModal({ pkg }: PackageBookingModalProps) {
     country: "Sri Lanka"
   });
 
+  const [selectedOptionalAmenities, setSelectedOptionalAmenities] = useState<string[]>([]);
+
+  const toggleOptionalAmenity = (key: string) => {
+    setSelectedOptionalAmenities(prev =>
+      prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
+    );
+  };
+
   // Calculate live total fare
   let totalFare = basePrice;
   let extraCharge = 0;
@@ -113,6 +134,24 @@ export default function PackageBookingModal({ pkg }: PackageBookingModalProps) {
       totalFare = basePrice + extraCharge;
     }
   }
+
+  // Optional amenities cost
+  let amenitiesCost = 0;
+  if (pkg.amenities) {
+    for (const amen of pkg.amenities) {
+      const amenKey = amen.id || amen.name;
+      if (!amen.isIncluded && selectedOptionalAmenities.includes(amenKey) && amen.price) {
+        if (amen.chargingBasis === "PER_PERSON") {
+          amenitiesCost += amen.price * passengers;
+        } else if (amen.chargingBasis === "PER_ITEM") {
+          amenitiesCost += amen.price * (amen.quantity || 1);
+        } else {
+          amenitiesCost += amen.price;
+        }
+      }
+    }
+  }
+  totalFare += amenitiesCost;
 
   const handleOpen = () => {
     if (!session) {
@@ -170,7 +209,8 @@ export default function PackageBookingModal({ pkg }: PackageBookingModalProps) {
           childSeatRequired,
           paymentMethod,
           specialRequests,
-          contactDetails
+          contactDetails,
+          selectedAmenities: selectedOptionalAmenities
         })
       });
 
@@ -444,6 +484,75 @@ export default function PackageBookingModal({ pkg }: PackageBookingModalProps) {
                     />
                   </div>
 
+                  {/* Amenities & Refreshments Selection */}
+                  {pkg.amenities && pkg.amenities.length > 0 && (
+                    <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3 text-xs">
+                      <div className="font-bold text-slate-800 flex items-center justify-between">
+                        <span className="flex items-center gap-1.5">
+                          <CheckCircle size={14} className="text-blue-600" /> Tour Amenities & Refreshments
+                        </span>
+                      </div>
+
+                      {/* Included items */}
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">
+                          Included with Your Tour:
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {pkg.amenities.filter(a => a.isIncluded).map((amen, idx) => (
+                            <span key={idx} className="bg-emerald-100 text-emerald-900 border border-emerald-200 px-2 py-0.5 rounded-lg text-xs font-medium flex items-center gap-1">
+                              ✓ {amen.name} {amen.quantity ? `(${amen.quantity} ${amen.unit || ""})` : ""}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Optional extras with checkboxes */}
+                      {pkg.amenities.some(a => !a.isIncluded) && (
+                        <div className="pt-2 border-t border-slate-200/60 space-y-2">
+                          <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wider block">
+                            Optional Add-ons & Refreshments:
+                          </span>
+                          <div className="space-y-1.5">
+                            {pkg.amenities.filter(a => !a.isIncluded).map(amen => {
+                              const amenKey = amen.id || amen.name;
+                              const isChecked = selectedOptionalAmenities.includes(amenKey);
+                              const basisLabel = amen.chargingBasis?.replace(/_/g, " ").toLowerCase() || "per person";
+                              return (
+                                <label
+                                  key={amenKey}
+                                  className={`flex items-start justify-between gap-3 p-2.5 rounded-xl border cursor-pointer transition-colors ${
+                                    isChecked
+                                      ? "bg-amber-50 border-amber-300 text-amber-950"
+                                      : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                                  }`}
+                                >
+                                  <div className="flex items-start gap-2.5">
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={() => toggleOptionalAmenity(amenKey)}
+                                      className="w-4 h-4 text-amber-600 rounded mt-0.5"
+                                    />
+                                    <div>
+                                      <span className="font-bold block">{amen.name}</span>
+                                      {amen.description && (
+                                        <span className="text-[11px] text-slate-500 block">{amen.description}</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <span className="font-extrabold text-amber-700 shrink-0">
+                                    + {amen.currency || currency} {amen.price?.toLocaleString()} <span className="text-[10px] font-normal text-slate-500">/{basisLabel}</span>
+                                  </span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div>
                     <label className="block font-bold text-slate-700 mb-1">Payment Method</label>
                     <div className="grid grid-cols-2 gap-3">
@@ -485,6 +594,11 @@ export default function PackageBookingModal({ pkg }: PackageBookingModalProps) {
                     {extraCharge > 0 && (
                       <span className="text-[10px] text-slate-500 block">
                         Includes {currency} {extraCharge.toLocaleString()} for extra passenger(s)
+                      </span>
+                    )}
+                    {amenitiesCost > 0 && (
+                      <span className="text-[10px] text-amber-700 font-semibold block">
+                        Includes {currency} {amenitiesCost.toLocaleString()} for optional amenities
                       </span>
                     )}
                   </div>

@@ -109,6 +109,7 @@ export async function PUT(request: Request) {
         }
         
         user.driverDetails = { ...oldDetails, ...driverDetails };
+        user.markModified("driverDetails");
       }
 
       // If sensitive docs changed and user is approved, revoke approval for admin review

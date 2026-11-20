@@ -34,7 +34,8 @@ export async function POST(req: NextRequest) {
       pickupTime,
       contactDetails,
       paymentMethod = "CASH",
-      specialRequests
+      specialRequests,
+      selectedAmenities = []
     } = body;
 
     if (!packageId) {
@@ -42,7 +43,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 1. Fetch package and verify it is PUBLISHED
-    const pkg = await Package.findById(packageId).populate("driverId", "name email phoneNumber");
+    const pkg = await Package.findById(packageId).populate("driverId", "name email phoneNumber driverDetails");
     if (!pkg) {
       return NextResponse.json({ error: "Package not found." }, { status: 404 });
     }
@@ -128,6 +129,44 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Process Amenities and optional extra charges
+    let amenitiesExtraCharge = 0;
+    const selectedAmenityRecords: any[] = [];
+    if (pkg.amenities && Array.isArray(pkg.amenities)) {
+      for (const amen of pkg.amenities) {
+        const amenKey = amen.id || amen.name;
+        const isSelected = amen.isIncluded || selectedAmenities.includes(amenKey);
+        let itemExtraCost = 0;
+        if (!amen.isIncluded && isSelected && amen.price) {
+          if (amen.chargingBasis === "PER_PERSON") {
+            itemExtraCost = amen.price * numPassengers;
+          } else if (amen.chargingBasis === "PER_ITEM") {
+            itemExtraCost = amen.price * (amen.quantity || 1);
+          } else {
+            itemExtraCost = amen.price; // PER_VEHICLE
+          }
+          amenitiesExtraCharge += itemExtraCost;
+        }
+
+        selectedAmenityRecords.push({
+          id: amen.id,
+          name: amen.name,
+          category: amen.category,
+          isIncluded: amen.isIncluded,
+          isSelected,
+          quantity: amen.quantity,
+          unit: amen.unit,
+          coverage: amen.coverage,
+          description: amen.description,
+          price: amen.price,
+          currency: amen.currency || currency,
+          chargingBasis: amen.chargingBasis,
+          extraCost: itemExtraCost
+        });
+      }
+    }
+    totalFare += amenitiesExtraCharge;
+
     // 5. Contact information
     const fullName = contactDetails?.fullName?.trim() || touristUser.name || "Traveller";
     const email = contactDetails?.email?.trim() || touristUser.email || "";
@@ -161,6 +200,7 @@ export async function POST(req: NextRequest) {
       inclusions: pkg.inclusionsList || pkg.costs?.inclusions || [],
       exclusions: pkg.exclusionsList || pkg.costs?.exclusions || [],
       includedServicesDetails: pkg.includedServicesDetails,
+      amenities: selectedAmenityRecords,
       languages: pkg.languages || [],
       cancellationPolicy: pkg.cancellationPolicy || pkg.costs?.cancellationTerms,
       weatherPolicy: pkg.weatherPolicy,
@@ -170,13 +210,16 @@ export async function POST(req: NextRequest) {
         pricingBasis,
         basePrice,
         extraCharge,
+        amenitiesExtraCharge,
         totalFare,
         passengers: numPassengers
       },
       driverSnapshot: {
         driverId: pkg.driverId?._id ? pkg.driverId._id.toString() : pkg.driverId?.toString(),
         name: (pkg.driverId as any)?.name || "Tour Driver",
-        phone: (pkg.driverId as any)?.phoneNumber || ""
+        phone: (pkg.driverId as any)?.phoneNumber || "",
+        homeCity: (pkg.driverId as any)?.driverDetails?.homeCity || "",
+        yearsOfExperience: (pkg.driverId as any)?.driverDetails?.yearsOfExperience || null
       },
       vehicleSnapshot: vehicle ? {
         name: vehicle.name,
@@ -223,7 +266,7 @@ export async function POST(req: NextRequest) {
         trafficCharge: 0,
         nightCharge: 0,
         highwayToll: 0,
-        additionalCharges: extraCharge,
+        additionalCharges: extraCharge + amenitiesExtraCharge,
         discount: 0,
         totalEstimatedFare: totalFare
       }

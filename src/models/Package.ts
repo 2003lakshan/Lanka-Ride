@@ -27,6 +27,20 @@ export interface IPackageMeals {
   dinner: IMealPlan;
 }
 
+export interface IPackageAmenity {
+  id?: string;
+  name: string;
+  category?: "WATER" | "SNACKS" | "BEVERAGES" | "WIFI" | "CUSTOM";
+  isIncluded: boolean;
+  quantity?: number;
+  unit?: string;
+  coverage: "PER_PERSON_PER_DAY" | "PER_PERSON_PER_TRIP" | "PER_VEHICLE";
+  description?: string;
+  price?: number;
+  currency?: "LKR" | "USD";
+  chargingBasis?: "PER_PERSON" | "PER_VEHICLE" | "PER_ITEM";
+}
+
 export interface IPackageCosts {
   basePrice: number;
   currency?: "LKR" | "USD";
@@ -102,6 +116,7 @@ export interface IPackage extends Document {
   accessibility?: string;
   childSeatAvailable?: boolean;
   thingsToBring?: string[];
+  amenities?: IPackageAmenity[];
 
   // Terms & Policies
   cancellationPolicy?: string;
@@ -113,8 +128,10 @@ export interface IPackage extends Document {
   approvedRevision?: number;
   changeRequest?: {
     feedback: string;
+    affectedFields?: string[];
     requestedAt: Date;
     requestedBy?: mongoose.Types.ObjectId | string;
+    requestedByName?: string;
     revision?: number;
   };
   rejectionReason?: string;
@@ -130,6 +147,24 @@ const MealPlanSchema = new Schema<IMealPlan>({
   status: { type: String, enum: ['INCLUDED', 'OPTIONAL', 'NOT_INCLUDED'], default: 'NOT_INCLUDED', required: true },
   cost: { type: Number, default: 0 },
   description: { type: String, default: "" }
+}, { _id: false });
+
+const PackageAmenitySchema = new Schema({
+  id: { type: String },
+  name: { type: String, required: true },
+  category: { type: String, enum: ["WATER", "SNACKS", "BEVERAGES", "WIFI", "CUSTOM"], default: "CUSTOM" },
+  isIncluded: { type: Boolean, default: true },
+  quantity: { type: Number, default: 1 },
+  unit: { type: String, default: "" },
+  coverage: {
+    type: String,
+    enum: ["PER_PERSON_PER_DAY", "PER_PERSON_PER_TRIP", "PER_VEHICLE"],
+    default: "PER_PERSON_PER_DAY"
+  },
+  description: { type: String, default: "" },
+  price: { type: Number, default: 0 },
+  currency: { type: String, enum: ["LKR", "USD"], default: "LKR" },
+  chargingBasis: { type: String, enum: ["PER_PERSON", "PER_VEHICLE", "PER_ITEM"], default: "PER_PERSON" }
 }, { _id: false });
 
 const PackageSchema = new Schema(
@@ -177,7 +212,8 @@ const PackageSchema = new Schema(
       stopDuration: { type: String, default: "" },
       overnightLocation: { type: String, default: "" },
       accommodationDetails: { type: String, default: "" },
-      notes: { type: String, default: "" }
+      notes: { type: String, default: "" },
+      meals: { type: Schema.Types.Mixed }
     }],
     
     meals: [{
@@ -217,6 +253,7 @@ const PackageSchema = new Schema(
     accessibility: { type: String, default: "Standard vehicle access; please enquire for wheelchair accessibility." },
     childSeatAvailable: { type: Boolean, default: true },
     thingsToBring: [{ type: String }],
+    amenities: [PackageAmenitySchema],
 
     cancellationPolicy: { type: String, default: "Free cancellation up to 48 hours prior to the tour start time. Cancellations within 48 hours may be subject to a 20% administrative fee." },
     weatherPolicy: { type: String, default: "In the event of severe weather or landslides, alternative scenic routes or indoor cultural sites will be arranged in full consultation with passengers." },
@@ -226,8 +263,10 @@ const PackageSchema = new Schema(
     approvedRevision: { type: Number },
     changeRequest: {
       feedback: { type: String },
+      affectedFields: [{ type: String }],
       requestedAt: { type: Date },
       requestedBy: { type: Schema.Types.ObjectId, ref: "User" },
+      requestedByName: { type: String },
       revision: { type: Number }
     },
     rejectionReason: { type: String },

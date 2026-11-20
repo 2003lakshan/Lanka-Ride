@@ -1,5 +1,24 @@
 import mongoose, { Schema, Document } from "mongoose";
 
+export interface IDriverDetails {
+  shortBio?: string;
+  yearsOfExperience?: number;
+  homeCity?: string;
+  areasServed?: string;
+  specialities?: string[] | string;
+  languagesSpoken?: string[] | string;
+  vehicleMake?: string;
+  vehicleModel?: string;
+  vehicleCategory?: string;
+  vehiclePhotos?: string[];
+  hasAc?: boolean;
+  passengerCapacity?: number;
+  luggageCapacity?: number;
+  nicOrPassportNumber?: string;
+  licenseExpiryDate?: string;
+  insurancePolicyNumber?: string;
+}
+
 export interface IUser extends Document {
   name: string;
   email: string;
@@ -19,8 +38,11 @@ export interface IUser extends Document {
   licenseNumber?: string;
   vehicleRegistration?: string;
   vehicleCategory?: "Bike" | "Three-wheeler" | "Car" | "Mini Van" | "Van" | "Lorry" | string;
-  driverDetails?: any;
+  driverDetails?: IDriverDetails;
   isApproved?: boolean;
+  rating?: number;
+  reviewCount?: number;
+  completedTripsCount?: number;
   isOnline?: boolean;
   locationUpdatedAt?: Date;
   currentLat?: number;
@@ -69,6 +91,9 @@ const UserSchema: Schema = new Schema(
     vehicleCategory: { type: String, enum: ["Bike", "Three-wheeler", "Car", "Mini Van", "Van", "Lorry"] },
     driverDetails: { type: Schema.Types.Mixed },
     isApproved: { type: Boolean, default: false },
+    rating: { type: Number, default: 5.0 },
+    reviewCount: { type: Number, default: 0 },
+    completedTripsCount: { type: Number, default: 0 },
     isOnline: { type: Boolean, default: false },
     locationUpdatedAt: { type: Date },
     currentLat: { type: Number },

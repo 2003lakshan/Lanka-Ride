@@ -28,6 +28,20 @@ import {
 } from "lucide-react";
 import PackageImage from "@/components/packages/PackageImage";
 
+export interface PackageAmenity {
+  id?: string;
+  name: string;
+  category?: "WATER" | "SNACKS" | "BEVERAGES" | "WIFI" | "CUSTOM";
+  isIncluded: boolean;
+  quantity?: number;
+  unit?: string;
+  coverage: "PER_PERSON_PER_DAY" | "PER_PERSON_PER_TRIP" | "PER_VEHICLE";
+  description?: string;
+  price?: number;
+  currency?: "LKR" | "USD";
+  chargingBasis?: "PER_PERSON" | "PER_VEHICLE" | "PER_ITEM";
+}
+
 export interface PackageFormData {
   _id?: string;
   title: string;
@@ -70,6 +84,7 @@ export interface PackageFormData {
     tickets?: string;
     guide?: string;
   };
+  amenities: PackageAmenity[];
   languages: string[];
   activityLevel: "Easy" | "Moderate" | "Strenuous";
   accessibility: string;
@@ -163,7 +178,7 @@ const STEPS = [
   { id: 1, label: "Basics & Photos", icon: ImageIcon },
   { id: 2, label: "Itinerary & Logistics", icon: Clock },
   { id: 3, label: "Vehicle & Pricing", icon: Car },
-  { id: 4, label: "Inclusions & Info", icon: Info },
+  { id: 4, label: "Amenities & Inclusions", icon: Info },
   { id: 5, label: "Availability & Terms", icon: ShieldCheck },
   { id: 6, label: "Review & Submit", icon: CheckCircle }
 ];
@@ -233,6 +248,40 @@ export default function PackageFormStepManager({ initialData, packageId, isEdit 
       tickets: "Driver will assist with ticket purchases at counter rates.",
       guide: "Experienced English-speaking tourist driver guide throughout the trip."
     },
+    amenities: initialData?.amenities && initialData.amenities.length > 0
+      ? initialData.amenities
+      : [
+          {
+            id: "amenity-water",
+            name: "Drinking Water (Chilled Mineral Water)",
+            category: "WATER",
+            isIncluded: true,
+            quantity: 2,
+            unit: "500 ml bottles",
+            coverage: "PER_PERSON_PER_DAY",
+            description: "Two 500 ml mineral water bottles per person per day included."
+          },
+          {
+            id: "amenity-snacks",
+            name: "Tropical Snack Pack",
+            category: "SNACKS",
+            isIncluded: true,
+            quantity: 1,
+            unit: "snack pack",
+            coverage: "PER_PERSON_PER_TRIP",
+            description: "One snack pack per person per trip included with fresh fruits & local treats."
+          },
+          {
+            id: "amenity-wifi",
+            name: "Onboard 4G Wi-Fi",
+            category: "WIFI",
+            isIncluded: true,
+            quantity: 1,
+            unit: "hotspot",
+            coverage: "PER_VEHICLE",
+            description: "Complimentary wireless internet available in vehicle."
+          }
+        ],
     languages: initialData?.languages || ["English", "Sinhala"],
     activityLevel: initialData?.activityLevel || "Easy",
     accessibility: initialData?.accessibility || "Wheelchair accessible on request",
@@ -267,6 +316,68 @@ export default function PackageFormStepManager({ initialData, packageId, isEdit 
   // Helper inputs for tags/chips
   const [destinationInput, setDestinationInput] = useState("");
   const [thingInput, setThingInput] = useState("");
+
+  // Amenities editor state
+  const [amenityModalOpen, setAmenityModalOpen] = useState(false);
+  const [editingAmenityIndex, setEditingAmenityIndex] = useState<number | null>(null);
+  const [amenityForm, setAmenityForm] = useState<PackageAmenity>({
+    name: "",
+    category: "WATER",
+    isIncluded: true,
+    quantity: 1,
+    unit: "bottle",
+    coverage: "PER_PERSON_PER_DAY",
+    description: "",
+    price: 0,
+    currency: "LKR",
+    chargingBasis: "PER_PERSON"
+  });
+
+  const handleOpenAddAmenity = (preset?: Partial<PackageAmenity>) => {
+    setEditingAmenityIndex(null);
+    setAmenityForm({
+      id: "amenity-" + Date.now(),
+      name: preset?.name || "",
+      category: preset?.category || "WATER",
+      isIncluded: preset?.isIncluded ?? true,
+      quantity: preset?.quantity ?? 1,
+      unit: preset?.unit || "units",
+      coverage: preset?.coverage || "PER_PERSON_PER_DAY",
+      description: preset?.description || "",
+      price: preset?.price || 0,
+      currency: preset?.currency || (formData.costs.currency || "LKR"),
+      chargingBasis: preset?.chargingBasis || "PER_PERSON"
+    });
+    setAmenityModalOpen(true);
+  };
+
+  const handleOpenEditAmenity = (index: number) => {
+    setEditingAmenityIndex(index);
+    const item = formData.amenities[index];
+    setAmenityForm({ ...item });
+    setAmenityModalOpen(true);
+  };
+
+  const handleSaveAmenity = () => {
+    if (!amenityForm.name.trim()) return;
+    setFormData(prev => {
+      const list = [...(prev.amenities || [])];
+      if (editingAmenityIndex !== null && editingAmenityIndex >= 0) {
+        list[editingAmenityIndex] = { ...amenityForm };
+      } else {
+        list.push({ ...amenityForm, id: amenityForm.id || "amenity-" + Date.now() });
+      }
+      return { ...prev, amenities: list };
+    });
+    setAmenityModalOpen(false);
+  };
+
+  const handleDeleteAmenity = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      amenities: (prev.amenities || []).filter((_, i) => i !== index)
+    }));
+  };
 
   // Fetch driver registered vehicle options and vehicle types
   useEffect(() => {
@@ -602,14 +713,45 @@ export default function PackageFormStepManager({ initialData, packageId, isEdit 
                 "{formData.changeRequest.feedback}"
               </p>
               {formData.changeRequest.affectedFields && formData.changeRequest.affectedFields.length > 0 && (
-                <div className="mt-3 flex items-center gap-2 text-xs text-amber-800 font-semibold">
-                  <span>Fields needing attention:</span>
-                  <div className="flex flex-wrap gap-1">
-                    {formData.changeRequest.affectedFields.map(f => (
-                      <span key={f} className="px-2 py-0.5 bg-amber-200 text-amber-900 rounded-md">
-                        {f}
-                      </span>
-                    ))}
+                <div className="mt-3 flex items-center gap-2 text-xs text-amber-800 font-semibold flex-wrap">
+                  <span>Sections needing attention:</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {formData.changeRequest.affectedFields.map(f => {
+                      const stepMap: Record<string, number> = {
+                        "Basics & Photos": 1,
+                        "Itinerary & Logistics": 2,
+                        "Hotel Details & Meals": 2,
+                        "Vehicle & Pricing": 3,
+                        "Amenities & Refreshments": 4,
+                        "Inclusions & Exclusions": 4,
+                        "Policies & Terms": 5,
+                        "Driver Profile Info": -1
+                      };
+                      const targetStep = stepMap[f];
+                      if (targetStep === -1) {
+                        return (
+                          <a
+                            key={f}
+                            href="/profile"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-2.5 py-1 bg-amber-200 hover:bg-amber-300 text-amber-950 rounded-lg text-xs font-bold cursor-pointer transition-colors inline-flex items-center gap-1"
+                          >
+                            {f} &rarr;
+                          </a>
+                        );
+                      }
+                      return (
+                        <button
+                          key={f}
+                          type="button"
+                          onClick={() => { if (targetStep) setCurrentStep(targetStep); }}
+                          className="px-2.5 py-1 bg-amber-200 hover:bg-amber-300 text-amber-950 rounded-lg text-xs font-bold cursor-pointer transition-colors"
+                        >
+                          {f} {targetStep ? `(Step ${targetStep})` : ""}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -1428,17 +1570,206 @@ export default function PackageFormStepManager({ initialData, packageId, isEdit 
           </div>
         )}
 
-        {/* ==================== STEP 4: INCLUSIONS & TRAVELLER INFO ==================== */}
+        {/* ==================== STEP 4: AMENITIES, INCLUSIONS & TRAVELLER INFO ==================== */}
         {currentStep === 4 && (
           <div className="p-6 md:p-8 space-y-6">
             <div>
               <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                <Info className="text-blue-600" size={24} />
-                Step 4: Inclusions & Traveller Information
+                <Sparkles className="text-blue-600" size={24} />
+                Step 4: Amenities, Inclusions & Traveller Information
               </h2>
               <p className="text-slate-500 text-sm mt-1">
-                Clearly state what is included, excluded, service specifics, and travel requirements.
+                Configure refreshments and amenities (drinking water, snacks, tea/coffee, Wi-Fi), service specifics, and travel requirements.
               </p>
+            </div>
+
+            {/* Amenities & Refreshments Builder */}
+            <div className="p-6 bg-slate-50 rounded-3xl border border-slate-200 space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <Sparkles className="text-blue-600" size={18} />
+                    Amenities & Refreshments
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Configure complimentary refreshments or optional paid upgrades with specific quantities and coverage.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleOpenAddAmenity()}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-xs shrink-0 cursor-pointer"
+                >
+                  <Plus size={15} /> Add Custom Item
+                </button>
+              </div>
+
+              {/* Quick Preset Buttons */}
+              <div className="space-y-2">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                  Quick Add Presets:
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenAddAmenity({
+                      name: "Drinking Water",
+                      category: "WATER",
+                      isIncluded: true,
+                      quantity: 2,
+                      unit: "500 ml bottles",
+                      coverage: "PER_PERSON_PER_DAY",
+                      description: "Two 500 ml mineral water bottles per person per day included."
+                    })}
+                    className="px-3 py-1.5 bg-white border border-slate-200 hover:border-blue-400 text-slate-800 rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-2xs hover:bg-blue-50 transition-colors cursor-pointer"
+                  >
+                    <span>💧</span> Drinking Water (2 x 500ml/day)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenAddAmenity({
+                      name: "Snack Pack",
+                      category: "SNACKS",
+                      isIncluded: true,
+                      quantity: 1,
+                      unit: "pack",
+                      coverage: "PER_PERSON_PER_TRIP",
+                      description: "One snack pack per person per trip included."
+                    })}
+                    className="px-3 py-1.5 bg-white border border-slate-200 hover:border-blue-400 text-slate-800 rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-2xs hover:bg-blue-50 transition-colors cursor-pointer"
+                  >
+                    <span>🍪</span> Snack Pack (1/trip)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenAddAmenity({
+                      name: "Ceylon Tea / Fresh Coffee",
+                      category: "BEVERAGES",
+                      isIncluded: true,
+                      quantity: 1,
+                      unit: "cup stop",
+                      coverage: "PER_PERSON_PER_DAY",
+                      description: "Daily fresh tea or coffee tasting stop included."
+                    })}
+                    className="px-3 py-1.5 bg-white border border-slate-200 hover:border-blue-400 text-slate-800 rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-2xs hover:bg-blue-50 transition-colors cursor-pointer"
+                  >
+                    <span>☕</span> Ceylon Tea & Coffee
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenAddAmenity({
+                      name: "Welcome King Coconut",
+                      category: "BEVERAGES",
+                      isIncluded: true,
+                      quantity: 1,
+                      unit: "fresh coconut",
+                      coverage: "PER_PERSON_PER_TRIP",
+                      description: "Chilled fresh king coconut welcome drink on arrival."
+                    })}
+                    className="px-3 py-1.5 bg-white border border-slate-200 hover:border-blue-400 text-slate-800 rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-2xs hover:bg-blue-50 transition-colors cursor-pointer"
+                  >
+                    <span>🥥</span> King Coconut Welcome
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenAddAmenity({
+                      name: "Onboard 4G Wi-Fi",
+                      category: "WIFI",
+                      isIncluded: true,
+                      quantity: 1,
+                      unit: "hotspot",
+                      coverage: "PER_VEHICLE",
+                      description: "High-speed 4G Wi-Fi throughout the tour for all passengers."
+                    })}
+                    className="px-3 py-1.5 bg-white border border-slate-200 hover:border-blue-400 text-slate-800 rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-2xs hover:bg-blue-50 transition-colors cursor-pointer"
+                  >
+                    <span>📶</span> 4G Wi-Fi (Per vehicle)
+                  </button>
+                </div>
+              </div>
+
+              {/* Configured Amenities List */}
+              <div className="space-y-3 pt-2">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                  Configured Amenities ({formData.amenities.length}):
+                </span>
+
+                {formData.amenities.length === 0 ? (
+                  <div className="p-4 bg-white rounded-2xl border border-dashed border-slate-300 text-center text-xs text-slate-500">
+                    No amenities configured yet. Click a preset above or add a custom item.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {formData.amenities.map((item, idx) => {
+                      const coverageLabel = item.coverage === "PER_PERSON_PER_DAY"
+                        ? "per person per day"
+                        : item.coverage === "PER_PERSON_PER_TRIP"
+                        ? "per person per trip"
+                        : "per vehicle";
+
+                      return (
+                        <div
+                          key={item.id || idx}
+                          className={`p-4 rounded-2xl border ${
+                            item.isIncluded
+                              ? "bg-white border-emerald-200 shadow-2xs"
+                              : "bg-white border-amber-200 shadow-2xs"
+                          } flex flex-col justify-between gap-3`}
+                        >
+                          <div>
+                            <div className="flex items-start justify-between gap-2 mb-1">
+                              <h4 className="font-bold text-slate-900 text-sm">{item.name}</h4>
+                              <span
+                                className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
+                                  item.isIncluded
+                                    ? "bg-emerald-100 text-emerald-800"
+                                    : "bg-amber-100 text-amber-800"
+                                }`}
+                              >
+                                {item.isIncluded ? "Included" : "Extra Charge"}
+                              </span>
+                            </div>
+
+                            <p className="text-xs text-slate-600 font-medium">
+                              {item.quantity ? `${item.quantity} ${item.unit || "units"} ` : ""}
+                              {coverageLabel} {item.isIncluded ? "included" : "available"}
+                            </p>
+
+                            {item.description && (
+                              <p className="text-[11px] text-slate-500 mt-1 line-clamp-2">
+                                {item.description}
+                              </p>
+                            )}
+
+                            {!item.isIncluded && (
+                              <p className="text-xs font-bold text-amber-700 mt-2">
+                                Rate: {item.currency || formData.costs.currency || "LKR"} {item.price?.toLocaleString()} ({item.chargingBasis?.replace(/_/g, " ").toLowerCase() || "per person"})
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditAmenity(idx)}
+                              className="px-2.5 py-1 text-xs font-bold text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteAmenity(idx)}
+                              className="px-2.5 py-1 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Quick Inclusions */}
@@ -1884,6 +2215,36 @@ export default function PackageFormStepManager({ initialData, packageId, isEdit 
                     ))}
                   </div>
                 </div>
+
+                {/* Step 6 Amenities Preview */}
+                <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-slate-900 text-base">Amenities & Refreshments ({formData.amenities.length})</h3>
+                    <button
+                      type="button"
+                      onClick={() => setCurrentStep(4)}
+                      className="text-xs font-bold text-blue-600 hover:text-blue-800"
+                    >
+                      Edit Step 4 &rarr;
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                    {formData.amenities.map((item, idx) => (
+                      <div key={item.id || idx} className="bg-white p-2.5 rounded-xl border border-slate-200">
+                        <div className="flex items-center justify-between font-bold text-slate-900">
+                          <span>{item.name}</span>
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full ${item.isIncluded ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                            {item.isIncluded ? 'Included' : `+ ${item.currency || formData.costs.currency || "LKR"} ${item.price?.toLocaleString()}`}
+                          </span>
+                        </div>
+                        <div className="text-slate-500 text-[11px] mt-0.5">
+                          {item.quantity ? `${item.quantity} ${item.unit || ""} ` : ""}
+                          ({item.coverage.replace(/_/g, " ").toLowerCase()})
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -1936,6 +2297,194 @@ export default function PackageFormStepManager({ initialData, packageId, isEdit 
           </div>
         </div>
       </div>
+
+      {/* Amenity Modal */}
+      {amenityModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-200 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <Sparkles className="text-blue-600" size={18} />
+                {editingAmenityIndex !== null ? "Edit Amenity" : "Add Amenity / Refreshment"}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setAmenityModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Item Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={amenityForm.name}
+                  onChange={e => setAmenityForm({ ...amenityForm, name: e.target.value })}
+                  placeholder="e.g. Drinking Water, Snack Pack, Ceylon Tea, Wi-Fi"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white outline-none focus:border-blue-500 text-slate-900 font-semibold"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Category</label>
+                  <select
+                    value={amenityForm.category || "WATER"}
+                    onChange={e => setAmenityForm({ ...amenityForm, category: e.target.value as any })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white outline-none focus:border-blue-500 text-slate-900 font-semibold"
+                  >
+                    <option value="WATER">Drinking Water</option>
+                    <option value="SNACKS">Snacks & Refreshments</option>
+                    <option value="BEVERAGES">Beverages (Tea/Coffee/Drinks)</option>
+                    <option value="WIFI">Wi-Fi & Connectivity</option>
+                    <option value="CUSTOM">Custom Item</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Coverage Scope</label>
+                  <select
+                    value={amenityForm.coverage}
+                    onChange={e => setAmenityForm({ ...amenityForm, coverage: e.target.value as any })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white outline-none focus:border-blue-500 text-slate-900 font-semibold"
+                  >
+                    <option value="PER_PERSON_PER_DAY">Per Person / Day</option>
+                    <option value="PER_PERSON_PER_TRIP">Per Person / Trip</option>
+                    <option value="PER_VEHICLE">Per Vehicle</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Quantity</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={amenityForm.quantity || 1}
+                    onChange={e => setAmenityForm({ ...amenityForm, quantity: Number(e.target.value) })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white outline-none focus:border-blue-500 text-slate-900 font-semibold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Unit</label>
+                  <input
+                    type="text"
+                    value={amenityForm.unit || ""}
+                    onChange={e => setAmenityForm({ ...amenityForm, unit: e.target.value })}
+                    placeholder="e.g. 500 ml bottles, pack, cup, hotspot"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white outline-none focus:border-blue-500 text-slate-900 font-semibold"
+                  />
+                </div>
+              </div>
+
+              {/* Inclusion vs Extra Charge Toggle */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1.5">Pricing Terms</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAmenityForm({ ...amenityForm, isIncluded: true })}
+                    className={`py-2 px-3 rounded-xl border font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+                      amenityForm.isIncluded
+                        ? "bg-emerald-600 text-white border-emerald-600"
+                        : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                    }`}
+                  >
+                    ✓ Included in Price (Free)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAmenityForm({ ...amenityForm, isIncluded: false })}
+                    className={`py-2 px-3 rounded-xl border font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+                      !amenityForm.isIncluded
+                        ? "bg-amber-600 text-white border-amber-600"
+                        : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                    }`}
+                  >
+                    + Available at Extra Charge
+                  </button>
+                </div>
+              </div>
+
+              {/* Extra charge specifics */}
+              {!amenityForm.isIncluded && (
+                <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200 grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block font-bold text-amber-900 mb-1 text-[11px]">Extra Price</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={amenityForm.price || 0}
+                      onChange={e => setAmenityForm({ ...amenityForm, price: Number(e.target.value) })}
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-amber-200 bg-white outline-none focus:border-blue-500 font-bold text-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-amber-900 mb-1 text-[11px]">Currency</label>
+                    <select
+                      value={amenityForm.currency || "LKR"}
+                      onChange={e => setAmenityForm({ ...amenityForm, currency: e.target.value as any })}
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-amber-200 bg-white outline-none focus:border-blue-500 font-bold text-slate-900"
+                    >
+                      <option value="LKR">LKR</option>
+                      <option value="USD">USD</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-bold text-amber-900 mb-1 text-[11px]">Charging Basis</label>
+                    <select
+                      value={amenityForm.chargingBasis || "PER_PERSON"}
+                      onChange={e => setAmenityForm({ ...amenityForm, chargingBasis: e.target.value as any })}
+                      className="w-full px-2.5 py-1.5 rounded-lg border border-amber-200 bg-white outline-none focus:border-blue-500 font-bold text-slate-900"
+                    >
+                      <option value="PER_PERSON">Per Person</option>
+                      <option value="PER_VEHICLE">Per Vehicle</option>
+                      <option value="PER_ITEM">Per Item</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Optional Description</label>
+                <textarea
+                  rows={2}
+                  value={amenityForm.description || ""}
+                  onChange={e => setAmenityForm({ ...amenityForm, description: e.target.value })}
+                  placeholder="e.g. Bottled mineral water refreshed daily for each traveller."
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white outline-none focus:border-blue-500 text-slate-800"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setAmenityModalOpen(false)}
+                className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-bold text-xs cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!amenityForm.name.trim()}
+                onClick={handleSaveAmenity}
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                Save Amenity
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
