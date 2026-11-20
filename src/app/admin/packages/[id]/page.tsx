@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import dbConnect from "@/lib/mongodb";
 import Package from "@/models/Package";
 import VehicleType from "@/models/VehicleType";
+import User from "@/models/User";
 import Link from "next/link";
 import { 
   MapPin, 
@@ -37,6 +38,11 @@ export default async function AdminPackageDetailsPage({ params }: { params: Prom
   }
 
   await dbConnect();
+  
+  // Ensure referenced models are evaluated and registered in Mongoose for population
+  if (VehicleType && User) {
+    // no-op
+  }
   
   const pkg = await Package.findById(id)
     .populate('driverId', 'name email phoneNumber profilePhoto vehicleRegistration vehicleCategory driverDetails isApproved rating reviewCount completedTripsCount identityStatus')

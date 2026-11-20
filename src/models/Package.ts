@@ -1,4 +1,6 @@
 import mongoose, { Schema, Document } from "mongoose";
+import "./User";
+import "./VehicleType";
 
 export interface IMealPlan {
   status: 'INCLUDED' | 'OPTIONAL' | 'NOT_INCLUDED';
