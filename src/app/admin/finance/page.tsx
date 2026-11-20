@@ -436,3 +436,4 @@ export default async function AdminFinancePage({ searchParams }: PageProps) {
     </div>
   );
 }
+

@@ -94,12 +94,37 @@ async function verify() {
   }).countDocuments();
   console.log(`5. Custom trips count: ${customTrips}`);
 
+  // Test 5: PickMe Page RSC Serialization
+  const secret = process.env.NEXTAUTH_SECRET!;
+  const { encode } = await import("next-auth/jwt");
+  const token = {
+    name: "System Admin",
+    email: "admin@lankaairportride.com",
+    role: "ADMIN",
+    sub: "6ab4afd38ec2c5ce6f772c99",
+    iat: Math.floor(Date.now() / 1000),
+    exp: Math.floor(Date.now() / 1000) + 24 * 60 * 60,
+  };
+  const sessionToken = await encode({ token, secret });
+  const cookie = `next-auth.session-token=${sessionToken}`;
+
+  const pickmeRes = await fetch("http://localhost:3000/admin/pickme", {
+    headers: { Cookie: cookie },
+  });
+  console.log(`5. GET /admin/pickme Status: ${pickmeRes.status}`);
+  const pickmeHtml = await pickmeRes.text();
+  if (pickmeRes.status !== 200 || pickmeHtml.includes("Only plain objects can be passed")) {
+    throw new Error("PickMe page RSC serialization failed!");
+  }
+  console.log("6. PickMe page rendered successfully with ZERO serialization errors.");
+
   console.log("=== ALL OPERATIONAL CHECKS PASSED SUCCESSFULLY ===");
+  const mongoose = await import("mongoose");
+  await mongoose.disconnect();
 }
 
-verify()
-  .then(() => process.exit(0))
-  .catch((e) => {
-    console.error("Verification failed:", e);
-    process.exit(1);
-  });
+verify().catch((e) => {
+  console.error("Verification failed:", e);
+  process.exit(1);
+});
+
