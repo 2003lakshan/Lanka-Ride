@@ -23,13 +23,15 @@ import {
   HelpCircle,
   LifeBuoy,
   X,
-  Mail
+  Mail,
+  Share2
 } from "lucide-react";
 import RiderTrackingMap from "@/components/booking/RiderTrackingMap";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { useSocket } from "@/components/providers/SocketProvider";
 import CancelRideModal from "@/components/booking/CancelRideModal";
+import ShareTrackingModal from "@/components/booking/ShareTrackingModal";
 import { CANCELLABLE_STATUSES, NON_CANCELLABLE_STARTED_STATUSES } from "@/lib/cancellation";
 
 interface RouteStats {
@@ -55,6 +57,7 @@ export default function TrackBookingPage() {
   const [isCancellingBooking, setIsCancellingBooking] = useState(false);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [cancellationNotice, setCancellationNotice] = useState<string | null>(null);
 
   const initialUrlChecked = useRef(false);
@@ -831,6 +834,16 @@ export default function TrackBookingPage() {
                         </>
                       )}
 
+                      {/* Share Live Tracking */}
+                      <button
+                        type="button"
+                        onClick={() => setIsShareModalOpen(true)}
+                        className="flex items-center gap-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold py-2 px-3.5 rounded-xl transition-colors border border-blue-200 text-xs shadow-sm cursor-pointer"
+                      >
+                        <Share2 size={15} />
+                        <span>Share Tracking</span>
+                      </button>
+
                       {/* Cancel Ride Action if driver is assigned/en route/arrived */}
                       {isCancellable && (
                         <button
@@ -870,6 +883,14 @@ export default function TrackBookingPage() {
                         : "Finding eligible driver. Live GPS updates will begin once assigned."}
                     </span>
                     <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setIsShareModalOpen(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded-lg border border-blue-200 text-xs transition-colors cursor-pointer"
+                      >
+                        <Share2 size={14} />
+                        <span>Share Tracking</span>
+                      </button>
                       {isCancellable && (
                         <button
                           type="button"
@@ -1108,6 +1129,16 @@ export default function TrackBookingPage() {
         bookingReference={booking?.bookingReference}
         isSubmitting={isCancellingBooking}
       />
+
+      {/* Share Tracking Link Modal */}
+      {booking?._id && (
+        <ShareTrackingModal
+          bookingId={booking._id}
+          bookingRef={booking.bookingReference}
+          isOpen={isShareModalOpen}
+          onClose={() => setIsShareModalOpen(false)}
+        />
+      )}
 
       {/* Contact Support Modal for started trips */}
       {isSupportModalOpen && (

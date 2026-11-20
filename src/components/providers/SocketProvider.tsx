@@ -43,7 +43,7 @@ interface SocketProviderProps {
  * 3. Localhost / laptop access -> connects to :3001
  * 4. Fallback to same-origin window.location.origin
  */
-function getSocketServerUrl(): string {
+export function getSocketServerUrl(): string {
   const envUrl = process.env.NEXT_PUBLIC_REALTIME_URL?.trim();
 
   if (typeof window !== "undefined") {
@@ -127,10 +127,15 @@ export function SocketProvider({ children }: SocketProviderProps) {
   }, []);
 
   useEffect(() => {
-    // Completely skip realtime connection when on login or signup pages
+    // Completely skip realtime connection when on login, signup, or public shared tracking pages
     if (typeof window !== "undefined") {
       const path = window.location.pathname;
-      if (path === "/login" || path === "/signup" || path.startsWith("/forgot-password")) {
+      if (
+        path === "/login" ||
+        path === "/signup" ||
+        path.startsWith("/forgot-password") ||
+        path.startsWith("/track/shared/")
+      ) {
         return;
       }
     }

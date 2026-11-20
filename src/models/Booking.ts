@@ -278,6 +278,12 @@ export interface IBooking extends Document {
   statusBeforeCancellation?: string;
   refundReviewStatus?: "NOT_APPLICABLE" | "PENDING_REVIEW" | "REFUNDED" | "RESOLVED";
   adminNotes?: Record<string, string>;
+  shareTokenHash?: string;
+  shareTokenCreatedAt?: Date;
+  shareTokenExpiresAt?: Date;
+  shareTokenRevoked?: boolean;
+  shareTokenRevokedAt?: Date;
+  shareTokenCreatedBy?: mongoose.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -598,6 +604,12 @@ const BookingSchema: Schema = new Schema(
       enum: ["NOT_APPLICABLE", "PENDING_REVIEW", "REFUNDED", "RESOLVED"],
       default: "NOT_APPLICABLE",
     },
+    shareTokenHash: { type: String, index: true, sparse: true },
+    shareTokenCreatedAt: { type: Date },
+    shareTokenExpiresAt: { type: Date },
+    shareTokenRevoked: { type: Boolean, default: false },
+    shareTokenRevokedAt: { type: Date },
+    shareTokenCreatedBy: { type: Schema.Types.ObjectId, ref: "User" },
   },
   { timestamps: true }
 );

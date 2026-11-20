@@ -27,12 +27,14 @@ import {
   ExternalLink,
   Phone,
   Sparkles,
-  Info
+  Info,
+  Share2
 } from "lucide-react";
 import { useSocket } from "@/components/providers/SocketProvider";
 import { useRouter } from "next/navigation";
 import { formatSriLankanDate, formatSriLankanLKR, formatSriLankanDateTime } from "@/lib/dateTime";
 import WhatsAppActionButton from "@/components/whatsapp/WhatsAppActionButton";
+import ShareTrackingModal from "@/components/booking/ShareTrackingModal";
 
 type TripTab = "ALL" | "AWAITING_CONFIRMATION" | "ACTIVE" | "COMPLETED";
 
@@ -50,6 +52,7 @@ export default function AdminTripsClient({ initialBookings }: { initialBookings:
 
   // Slide-over Details panel state
   const [selectedBooking, setSelectedBooking] = useState<any | null>(null);
+  const [shareModalBooking, setShareModalBooking] = useState<any | null>(null);
   const [isConfirming, setIsConfirming] = useState(false);
   const [actionMessage, setActionMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
@@ -1009,6 +1012,16 @@ export default function AdminTripsClient({ initialBookings }: { initialBookings:
                   isConfirmedOrApproved={["CONFIRMED", "APPROVED", "DRIVER_ASSIGNED", "DRIVER_EN_ROUTE", "TRIP_IN_PROGRESS", "COMPLETED"].includes(selectedBooking.status)}
                 />
 
+                <button
+                  type="button"
+                  onClick={() => setShareModalBooking(selectedBooking)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors shadow-xs"
+                  title="Generate or share public tracking link"
+                >
+                  <Share2 size={13} />
+                  <span>Share Link</span>
+                </button>
+
                 <Link
                   href={`/admin/trips/${selectedBooking._id}`}
                   className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors shadow-xs"
@@ -1369,6 +1382,15 @@ export default function AdminTripsClient({ initialBookings }: { initialBookings:
             </div>
           </aside>
         </div>
+      )}
+      {/* Public Share Link Modal */}
+      {shareModalBooking && (
+        <ShareTrackingModal
+          bookingId={shareModalBooking._id}
+          bookingRef={shareModalBooking.bookingReference}
+          isOpen={Boolean(shareModalBooking)}
+          onClose={() => setShareModalBooking(null)}
+        />
       )}
     </div>
   );

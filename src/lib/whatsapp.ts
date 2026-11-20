@@ -273,6 +273,7 @@ export interface NotifyTravellerDriverAssignedData {
   pickupLocation?: string | null;
   tripDates?: string | null;
   pickupTime?: string | null;
+  shareableTrackingUrl?: string | null;
   appUrl?: string;
 }
 
@@ -287,6 +288,10 @@ export function generateNotifyTravellerDriverAssignedMessage(data: NotifyTravell
   const dates = data.tripDates || "Scheduled Date";
   const time = data.pickupTime ? ` at ${data.pickupTime}` : "";
 
+  const liveTrackSection = data.shareableTrackingUrl
+    ? `• *Track your driver live (no login required):*\n${data.shareableTrackingUrl}\n\n• *Manage your booking (login required):*\n${appUrl}/bookings/${data.bookingId}`
+    : `• *Track your driver live:*\n${appUrl}/track?ref=${data.bookingRef}\n\n• *Manage your booking:*\n${appUrl}/bookings/${data.bookingId}`;
+
   return `Hello ${rider},
 
 Your driver has been assigned for your upcoming trip with *At Your Service – Powered by Pexora*! 🚗
@@ -297,8 +302,7 @@ Your driver has been assigned for your upcoming trip with *At Your Service – P
 • *Vehicle:* ${vehicle}${reg}
 • *Pickup:* ${pickup} on ${dates}${time}
 
-On the day of your trip, you can track your driver live on the map:
-${appUrl}/track/${data.bookingRef}
+${liveTrackSection}
 
 Have a wonderful and safe journey in Sri Lanka!`;
 }

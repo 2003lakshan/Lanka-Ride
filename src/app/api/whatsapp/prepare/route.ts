@@ -21,6 +21,8 @@ import {
   generateCustomerSupportMessage
 } from "@/lib/whatsapp";
 import { formatSriLankanDate } from "@/lib/dateTime";
+import { generateShareToken, hashShareToken, calculateShareTokenExpiry } from "@/lib/shareToken";
+import { getPublicAppUrl } from "@/lib/whatsapp";
 
 export const dynamic = "force-dynamic";
 
@@ -298,6 +300,24 @@ export async function POST(req: Request) {
           );
         }
 
+        // Generate fresh share token for safe, login-free live ride tracking
+        const rawToken = generateShareToken();
+        const tokenHash = hashShareToken(rawToken);
+        const expiresAt = calculateShareTokenExpiry(booking);
+
+        await Booking.findByIdAndUpdate(bookingId, {
+          $set: {
+            shareTokenHash: tokenHash,
+            shareTokenCreatedAt: new Date(),
+            shareTokenExpiresAt: expiresAt,
+            shareTokenRevoked: false,
+            shareTokenRevokedAt: null,
+          },
+        });
+
+        const appUrl = getPublicAppUrl();
+        const shareableTrackingUrl = `${appUrl}/track/shared/${rawToken}`;
+
         const phone = normalizeWhatsAppPhone(customPhone || rawRiderPhone, customCountry || countryHint);
         const message = generateNotifyTravellerDriverAssignedMessage({
           bookingRef: booking.bookingReference,
@@ -309,7 +329,8 @@ export async function POST(req: Request) {
           registrationNumber: driver.vehicleDetails?.registrationNumber || driver.vehicleRegistration,
           pickupLocation,
           tripDates,
-          pickupTime: booking.arrivalTime || (booking.customTripDetails?.itinerary?.[0] as any)?.departureTime
+          pickupTime: booking.arrivalTime || (booking.customTripDetails?.itinerary?.[0] as any)?.departureTime,
+          shareableTrackingUrl,
         });
 
         return NextResponse.json({

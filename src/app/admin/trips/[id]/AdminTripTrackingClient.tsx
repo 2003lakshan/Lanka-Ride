@@ -19,13 +19,15 @@ import {
   Phone,
   Mail,
   Luggage,
-  Users
+  Users,
+  Share2
 } from "lucide-react";
 import RiderTrackingMap from "@/components/booking/RiderTrackingMap";
 import { useSocket } from "@/components/providers/SocketProvider";
 import { AdminTripViewModel } from "@/lib/tripViewModel";
 import { formatSriLankanDate } from "@/lib/dateTime";
 import WhatsAppActionButton from "@/components/whatsapp/WhatsAppActionButton";
+import ShareTrackingModal from "@/components/booking/ShareTrackingModal";
 
 export default function AdminTripTrackingClient({
   initialBooking,
@@ -38,6 +40,7 @@ export default function AdminTripTrackingClient({
   const [booking, setBooking] = useState<AdminTripViewModel>(initialBooking);
   const [followDriver, setFollowDriver] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [actionMessage, setActionMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // Subscribe to booking room
@@ -244,6 +247,16 @@ export default function AdminTripTrackingClient({
               hasAssignedDriver={Boolean(booking.driverId)}
               isConfirmedOrApproved={["CONFIRMED", "APPROVED", "DRIVER_ASSIGNED", "DRIVER_EN_ROUTE", "TRIP_IN_PROGRESS", "COMPLETED"].includes(booking.status)}
             />
+
+            <button
+              type="button"
+              onClick={() => setIsShareModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl transition-colors shadow-xs"
+              title="Generate or share public tracking link"
+            >
+              <Share2 size={14} />
+              <span>Share Link</span>
+            </button>
           </div>
         </div>
       </div>
@@ -682,6 +695,13 @@ export default function AdminTripTrackingClient({
           </div>
         </div>
       </div>
+      {/* Public Share Link Modal */}
+      <ShareTrackingModal
+        bookingId={bookingId}
+        bookingRef={booking.bookingReference}
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+      />
     </div>
   );
 }

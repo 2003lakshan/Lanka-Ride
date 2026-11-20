@@ -1,4 +1,5 @@
 import http from "http";
+import crypto from "crypto";
 import { Server, Socket } from "socket.io";
 import dotenv from "dotenv";
 import mongoose from "mongoose";
@@ -92,6 +93,9 @@ const bookingSchema = new mongoose.Schema(
     touristId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     driverId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     status: String,
+    shareTokenHash: String,
+    shareTokenRevoked: Boolean,
+    shareTokenExpiresAt: Date,
   },
   { timestamps: true }
 );
@@ -340,6 +344,47 @@ io.use(async (socket, next) => {
   try {
     await initDb();
 
+    // 1A. Check for login-free guest share token
+    const shareToken = socket.handshake.auth?.shareToken || socket.handshake.query?.shareToken;
+    if (shareToken && typeof shareToken === "string") {
+      const trimmed = shareToken.trim();
+      if (trimmed.length < 32 || trimmed.length > 128) {
+        return next(new Error("UNAUTHORIZED: Malformed share token"));
+      }
+
+      const hash = crypto.createHash("sha256").update(trimmed).digest("hex");
+      const booking: any = await BookingModel.findOne({ shareTokenHash: hash })
+        .select("_id bookingReference status shareTokenRevoked shareTokenExpiresAt")
+        .lean();
+
+      if (!booking) {
+        return next(new Error("UNAUTHORIZED: Invalid or unrecognized share token"));
+      }
+
+      if (booking.shareTokenRevoked) {
+        return next(new Error("UNAUTHORIZED: Share token has been revoked"));
+      }
+
+      if (booking.shareTokenExpiresAt && new Date(booking.shareTokenExpiresAt).getTime() < Date.now()) {
+        return next(new Error("UNAUTHORIZED: Share token has expired"));
+      }
+
+      // Authenticate as a guest viewer restricted specifically to this booking
+      socket.data.isShareGuest = true;
+      socket.data.shareBookingId = booking._id.toString();
+      socket.data.user = {
+        id: `guest_${booking._id}`,
+        name: "Guest Viewer",
+        email: "",
+        role: "GUEST",
+        isApproved: true,
+        sessionVersion: 0,
+      };
+
+      return next();
+    }
+
+    // 1B. Standard user session authentication
     const rawToken = extractToken(socket);
     if (!rawToken) {
       return next(new Error("UNAUTHORIZED: Missing session token"));
@@ -391,6 +436,45 @@ io.use(async (socket, next) => {
 // -------------------------------------------------------------
 io.on("connection", (socket) => {
   const user = socket.data.user;
+
+  // Handle guest share viewer connection:
+  // Automatically subscribe ONLY to the token-authorized booking room.
+  if (socket.data.isShareGuest) {
+    const bookingId = socket.data.shareBookingId;
+    socket.join(`booking:${bookingId}`);
+    console.log(`[Socket Connected] Guest Viewer joined room booking:${bookingId} (Socket: ${socket.id})`);
+
+    socket.emit("connected", {
+      role: "GUEST",
+      bookingId,
+      socketId: socket.id,
+      timestamp: new Date().toISOString(),
+    });
+
+    // Restrict subscriptions: Guests can ONLY resubscribe to their authorized booking room
+    socket.on("booking:subscribe", (payload: any, callback: any) => {
+      const reqBookingId = typeof payload === "string" ? payload : payload?.bookingId;
+      if (reqBookingId === bookingId) {
+        socket.join(`booking:${bookingId}`);
+        if (typeof callback === "function") callback({ success: true, bookingId });
+      } else {
+        if (typeof callback === "function") {
+          callback({ success: false, error: "FORBIDDEN: Share token only grants access to its own trip room" });
+        }
+      }
+    });
+
+    socket.on("enquiry:subscribe", (payload: any, callback: any) => {
+      if (typeof callback === "function") callback({ success: false, error: "FORBIDDEN" });
+    });
+
+    socket.on("disconnect", (reason) => {
+      console.log(`[Socket Disconnected] Guest Viewer for booking:${bookingId} reason: ${reason}`);
+    });
+
+    return;
+  }
+
   console.log(`[Socket Connected] User ${user.name} (${user.id}) [Role: ${user.role}] (Socket: ${socket.id})`);
 
   // Join private user room
