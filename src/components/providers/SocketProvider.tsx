@@ -37,44 +37,47 @@ interface SocketProviderProps {
 
 /**
  * Resolves the Socket.IO server URL.
- * Automatically adapts between laptop (localhost), local LAN phone (Wi-Fi IP e.g. 192.168.8.100),
- * and public tunnels (e.g. trycloudflare.com).
+ * Automatically adapts between:
+ * 1. Explicitly configured NEXT_PUBLIC_REALTIME_URL (standalone Socket.IO server or remote tunnel)
+ * 2. Local LAN phone access (Wi-Fi IP e.g. 192.168.8.100) -> connects to :3001
+ * 3. Localhost / laptop access -> connects to :3001
+ * 4. Fallback to same-origin window.location.origin
  */
 function getSocketServerUrl(): string {
+  const envUrl = process.env.NEXT_PUBLIC_REALTIME_URL?.trim();
+
   if (typeof window !== "undefined") {
     const protocol = window.location.protocol === "https:" ? "https:" : "http:";
     const host = window.location.hostname;
     const port = process.env.NEXT_PUBLIC_REALTIME_PORT || "3001";
 
-    // 1. If accessing via localhost or private LAN IP (same Wi-Fi), connect directly to port 3001:
-    const isLocalOrLan =
-      host === "localhost" ||
-      host === "127.0.0.1" ||
+    const isLocalhost = host === "localhost" || host === "127.0.0.1";
+    const isPrivateIP =
       /^192\.168\.\d{1,3}\.\d{1,3}$/.test(host) ||
       /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host) ||
       /^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}$/.test(host);
 
-    if (isLocalOrLan) {
-      return `${protocol}//${host}:${port}`;
-    }
-
-    // 2. If a dedicated remote realtime URL is provided (excluding dead trycloudflare tunnels):
-    const envUrl = process.env.NEXT_PUBLIC_REALTIME_URL;
-    if (
-      envUrl &&
-      !envUrl.includes("localhost") &&
-      !envUrl.includes("0.0.0.0") &&
-      !envUrl.includes("trycloudflare.com")
-    ) {
+    // 1. If an explicit remote URL is configured (e.g. Cloudflare tunnel or custom domain),
+    // it always takes precedence for this standalone Socket.IO setup:
+    if (envUrl && !envUrl.includes("localhost") && !envUrl.includes("127.0.0.1") && !envUrl.includes("0.0.0.0")) {
       return envUrl;
     }
 
-    // 3. For public tunnels (e.g. *.trycloudflare.com) where port 3001 is NOT exposed:
-    // Connect to same-origin (standard HTTPS port 443) routed through Next.js /socket.io rewrite!
+    // 2. If accessing via localhost or private LAN IP (same Wi-Fi), connect directly to port 3001 on the active host:
+    if (isLocalhost || isPrivateIP) {
+      return `${protocol}//${host}:${port}`;
+    }
+
+    // 3. If an explicit NEXT_PUBLIC_REALTIME_URL is set (even if local), use it:
+    if (envUrl) {
+      return envUrl;
+    }
+
+    // 4. Default fallback: same-origin
     return window.location.origin;
   }
 
-  return process.env.NEXT_PUBLIC_REALTIME_URL || "http://localhost:3001";
+  return envUrl || "http://localhost:3001";
 }
 
 export function SocketProvider({ children }: SocketProviderProps) {

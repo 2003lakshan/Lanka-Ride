@@ -10,7 +10,7 @@ const nextConfig: NextConfig = {
     "localhost:3000",
     "127.0.0.1",
     "127.0.0.1:3000",
-    "gate-alpha-committed-occurring.trycloudflare.com",
+    "observed-criticism-drunk-snap.trycloudflare.com",
   ],
   experimental: {
     serverActions: {
