@@ -43,7 +43,9 @@ export default async function AdminLiveTrackingPage() {
     .sort({ updatedAt: -1 })
     .lean();
 
-  const serializedBookings = activeBookings.map((b: any) => normalizeAdminTrip(b));
+  const serializedBookings = JSON.parse(
+    JSON.stringify(activeBookings.map((b: any) => normalizeAdminTrip(b)))
+  );
 
   return <AdminLiveTrackingClient initialActiveBookings={serializedBookings} />;
 }

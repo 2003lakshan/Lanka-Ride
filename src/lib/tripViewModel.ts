@@ -483,7 +483,7 @@ export function normalizeAdminTrip(raw: any): AdminTripViewModel {
     displayPrice = `${normalizedCustomTripDetails.budgetCurrency} ${normalizedCustomTripDetails.budget.toLocaleString()}`;
   }
 
-  return {
+  const result: AdminTripViewModel = {
     _id: id,
     bookingReference,
     status: raw.status || "PENDING",
@@ -526,10 +526,21 @@ export function normalizeAdminTrip(raw: any): AdminTripViewModel {
     displayPrice,
 
     airportId: raw.airportId ? (raw.airportId._id ? { ...raw.airportId, _id: raw.airportId._id.toString() } : raw.airportId.toString()) : null,
-    packageId: raw.packageId ? (raw.packageId._id ? { ...raw.packageId, _id: raw.packageId._id.toString() } : raw.packageId.toString()) : null,
+    packageId: raw.packageId
+      ? typeof raw.packageId === "object"
+        ? {
+            ...raw.packageId,
+            _id: raw.packageId._id ? raw.packageId._id.toString() : undefined,
+            driverId: raw.packageId.driverId ? raw.packageId.driverId.toString() : undefined,
+            vehicleTypeId: raw.packageId.vehicleTypeId ? raw.packageId.vehicleTypeId.toString() : undefined,
+          }
+        : raw.packageId.toString()
+      : null,
     packageEnquiryId: raw.packageEnquiryId ? (raw.packageEnquiryId._id ? { ...raw.packageEnquiryId, _id: raw.packageEnquiryId._id.toString() } : raw.packageEnquiryId.toString()) : null,
     packageItineraryDetails: raw.packageItineraryDetails || null,
     adminNotes: raw.adminNotes || null,
     touristId: raw.touristId ? (raw.touristId._id ? { ...raw.touristId, _id: raw.touristId._id.toString() } : raw.touristId.toString()) : null,
   };
+
+  return JSON.parse(JSON.stringify(result));
 }

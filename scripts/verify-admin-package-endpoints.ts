@@ -212,3 +212,4 @@ verifyEndpoints().catch(async (e) => {
   await mongoose.disconnect();
   process.exit(1);
 });
+

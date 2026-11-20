@@ -36,7 +36,9 @@ export default async function AdminTripsPage() {
     .sort({ arrivalDate: -1, createdAt: -1 })
     .lean();
 
-  const serializedBookings = bookings.map((b: any) => normalizeAdminTrip(b));
+  const serializedBookings = JSON.parse(
+    JSON.stringify(bookings.map((b: any) => normalizeAdminTrip(b)))
+  );
 
   return <AdminTripsClient initialBookings={serializedBookings} />;
 }

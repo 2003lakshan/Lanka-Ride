@@ -46,7 +46,9 @@ export default async function AdminTripTrackingPage({ params }: { params: Promis
     );
   }
 
-  const serializedBooking = normalizeAdminTrip(booking);
+  const serializedBooking = JSON.parse(
+    JSON.stringify(normalizeAdminTrip(booking))
+  );
 
   return <AdminTripTrackingClient initialBooking={serializedBooking} bookingId={resolvedParams.id} />;
 }
