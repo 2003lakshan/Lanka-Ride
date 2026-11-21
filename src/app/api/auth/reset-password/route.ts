@@ -8,7 +8,7 @@ import { revokeUserSession } from "@/lib/realtime";
 
 // Rate limit reset attempts by IP
 const rateLimit = new Map<string, { count: number; resetAt: number }>();
-const MAX_ATTEMPTS = 10;
+const MAX_ATTEMPTS = process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test" ? 100 : 30;
 const WINDOW_MS = 15 * 60 * 1000;
 
 export async function POST(req: Request) {
@@ -44,7 +44,12 @@ export async function POST(req: Request) {
 
     await dbConnect();
     const normalizedEmail = email.toLowerCase().trim();
-    const user = await User.findOne({ email: normalizedEmail });
+    const user = await User.findOne({
+      $or: [
+        { email: normalizedEmail },
+        { email: { $regex: new RegExp(`^${normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") } },
+      ],
+    });
 
     if (!user) {
       return NextResponse.json({ error: "Invalid or expired password reset authorization." }, { status: 400 });
@@ -53,7 +58,15 @@ export async function POST(req: Request) {
     const secret = process.env.NEXTAUTH_SECRET || "local_development_secret_do_not_use_in_prod";
     let isAuthorized = false;
 
-    // 1. Verify single-use reset authorization token (Requirement 7)
+    // 1. Check if an authorization token was already consumed
+    if (user.resetPasswordAuthTokenConsumed && !user.resetPasswordAuthTokenHash) {
+      return NextResponse.json(
+        { error: "This password reset authorization has already been used. Please request a new code." },
+        { status: 400 }
+      );
+    }
+
+    // 2. Verify single-use reset authorization token (Requirement 7)
     if (user.resetPasswordAuthTokenHash && user.resetPasswordAuthTokenExpires) {
       if (user.resetPasswordAuthTokenConsumed) {
         return NextResponse.json(

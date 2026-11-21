@@ -39,10 +39,14 @@ export function getSenderAddress(): string {
 
   const user = process.env.SMTP_USER;
   if (user && user.trim() !== "") {
-    return user.trim();
+    const trimmedUser = user.trim();
+    if (trimmedUser.includes("<") && trimmedUser.includes(">")) {
+      return trimmedUser;
+    }
+    return `"At Your Service" <${trimmedUser}>`;
   }
 
-  return "noreply@lankaairportride.com";
+  return '"At Your Service" <noreply@lankaairportride.com>';
 }
 
 /**
@@ -187,11 +191,19 @@ export async function sendPasswordResetOtpEmail(
     };
   }
 
+  const cleanTo = (toEmail || "").toLowerCase().trim();
+  if (!cleanTo || !cleanTo.includes("@")) {
+    return {
+      success: false,
+      error: "Invalid recipient email address.",
+    };
+  }
+
   const from = getSenderAddress();
 
   const mailOptions = {
     from,
-    to: toEmail,
+    to: cleanTo,
     subject: "Your Lanka Airport Ride Password Reset Code",
     text: `Your password reset verification code is: ${otpCode}\n\nThis code will expire in 10 minutes.\n\nIf you did not request a password reset, you can safely ignore this email.`,
     html: `
@@ -300,11 +312,19 @@ export async function sendPasswordChangedConfirmationEmail(
     };
   }
 
+  const cleanTo = (toEmail || "").toLowerCase().trim();
+  if (!cleanTo || !cleanTo.includes("@")) {
+    return {
+      success: false,
+      error: "Invalid recipient email address.",
+    };
+  }
+
   const from = getSenderAddress();
 
   const mailOptions = {
     from,
-    to: toEmail,
+    to: cleanTo,
     subject: "Security Alert: Lanka Airport Ride Password Changed",
     text: `Hello ${userName || "Valued User"},\n\nYour password for Lanka Airport Ride was successfully changed at ${new Date().toUTCString()}.\n\nAll existing login sessions have been invalidated.\n\nIf you did not make this change, please contact support immediately.`,
     html: `
@@ -416,10 +436,18 @@ export async function sendContactVerificationOtpEmail(
     };
   }
 
+  const cleanTo = (toEmail || "").toLowerCase().trim();
+  if (!cleanTo || !cleanTo.includes("@")) {
+    return {
+      success: false,
+      error: "Invalid recipient email address.",
+    };
+  }
+
   const from = getSenderAddress();
   const mailOptions = {
     from,
-    to: toEmail,
+    to: cleanTo,
     subject: "Your Lanka Airport Ride Trip Verification Code",
     text: `Your verification code for custom trip planning is: ${otpCode}\n\nThis code will expire in 10 minutes.\n\nIf you did not initiate this custom trip request, please ignore this email.`,
     html: `

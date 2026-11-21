@@ -12,7 +12,7 @@ interface RateRecord {
 const ipRateLimit = new Map<string, RateRecord>();
 const accountRateLimit = new Map<string, RateRecord>();
 
-const MAX_IP_ATTEMPTS = 10;
+const MAX_IP_ATTEMPTS = process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test" ? 100 : 30;
 const MAX_ACCOUNT_ATTEMPTS = 5;
 const WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 const RESEND_COOLDOWN_MS = 60 * 1000; // 60 seconds
@@ -38,8 +38,8 @@ export async function POST(req: Request) {
   try {
     const { email } = await req.json();
 
-    if (!email || typeof email !== "string") {
-      return NextResponse.json({ error: "Email is required" }, { status: 400 });
+    if (!email || typeof email !== "string" || !email.includes("@")) {
+      return NextResponse.json({ error: "Please enter a valid email address." }, { status: 400 });
     }
 
     const normalizedEmail = email.toLowerCase().trim();
@@ -76,7 +76,12 @@ export async function POST(req: Request) {
     }
 
     await dbConnect();
-    const user = await User.findOne({ email: normalizedEmail });
+    const user = await User.findOne({
+      $or: [
+        { email: normalizedEmail },
+        { email: { $regex: new RegExp(`^${normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") } },
+      ],
+    });
 
     if (user) {
       const now = Date.now();

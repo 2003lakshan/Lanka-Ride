@@ -4,7 +4,7 @@ import dbConnect from "@/lib/mongodb";
 import User from "@/models/User";
 
 const ipRateLimit = new Map<string, { count: number; resetAt: number }>();
-const MAX_VERIFY_IP_ATTEMPTS = 15;
+const MAX_VERIFY_IP_ATTEMPTS = process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test" ? 120 : 40;
 const WINDOW_MS = 15 * 60 * 1000;
 
 export async function POST(req: Request) {
@@ -39,7 +39,12 @@ export async function POST(req: Request) {
 
     await dbConnect();
     const normalizedEmail = email.toLowerCase().trim();
-    const user = await User.findOne({ email: normalizedEmail });
+    const user = await User.findOne({
+      $or: [
+        { email: normalizedEmail },
+        { email: { $regex: new RegExp(`^${normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") } },
+      ],
+    });
 
     // Requirement 11: Show clear invalid/expired-code errors without revealing whether an account exists
     if (!user || !user.resetPasswordOtpHash || !user.resetPasswordOtpExpires) {
