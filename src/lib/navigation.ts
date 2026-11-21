@@ -1,5 +1,5 @@
 /**
- * Navigation helpers for Lanka Airport Ride.
+ * Navigation helpers for At Your Service – Powered by Pexora.
  * Builds standard Google Maps directions URLs without a Google API key or paid routing services.
  */
 

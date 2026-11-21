@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
   Mail,
-  Plane,
   ArrowLeft,
   Loader2,
   CheckCircle,
@@ -17,6 +16,7 @@ import {
   RefreshCw,
   ShieldCheck,
 } from "lucide-react";
+import BrandLogo from "@/components/brand/BrandLogo";
 
 type RecoveryStep = "REQUEST_EMAIL" | "VERIFY_OTP" | "NEW_PASSWORD" | "SUCCESS";
 
@@ -288,17 +288,21 @@ function ForgotPasswordContent() {
       <div className="max-w-md w-full space-y-6 bg-white/85 backdrop-blur-xl p-8 sm:p-10 rounded-3xl shadow-xl border border-slate-100 z-10 relative transition-all">
         {/* Header Icon & Title */}
         <div className="text-center">
-          <div className="mx-auto bg-blue-600 text-white w-14 h-14 rounded-2xl flex items-center justify-center mb-5 shadow-lg shadow-blue-500/30">
-            {step === "VERIFY_OTP" ? (
-              <KeyRound size={26} />
-            ) : step === "NEW_PASSWORD" ? (
-              <Lock size={26} />
-            ) : step === "SUCCESS" ? (
-              <ShieldCheck size={28} />
-            ) : (
-              <Plane size={26} />
-            )}
-          </div>
+          {step === "REQUEST_EMAIL" ? (
+            <div className="flex justify-center mb-5">
+              <BrandLogo variant="icon" size="md" linkToHome={true} />
+            </div>
+          ) : (
+            <div className="mx-auto bg-blue-600 text-white w-14 h-14 rounded-2xl flex items-center justify-center mb-5 shadow-lg shadow-blue-500/30">
+              {step === "VERIFY_OTP" ? (
+                <KeyRound size={26} />
+              ) : step === "NEW_PASSWORD" ? (
+                <Lock size={26} />
+              ) : (
+                <ShieldCheck size={28} />
+              )}
+            </div>
+          )}
 
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
             {step === "REQUEST_EMAIL" && "Password Recovery"}

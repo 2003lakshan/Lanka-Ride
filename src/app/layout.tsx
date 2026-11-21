@@ -10,8 +10,23 @@ import WhatsAppSupportButton from "@/components/whatsapp/WhatsAppSupportButton";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Lanka Airport Ride - Sri Lanka Airport Transfers",
-  description: "Book your reliable airport transfer in Sri Lanka. Instant fare estimation and easy booking for foreign tourists.",
+  title: {
+    default: "At Your Service – Powered by Pexora | Premium Sri Lanka Travel & Transfers",
+    template: "%s | At Your Service – Powered by Pexora",
+  },
+  description: "Official Sri Lanka airport transfers, custom multi-day island trip planning, and verified driver tour packages with real-time GPS tracking. Powered by Pexora.",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/brand/favicon-32x32.png", type: "image/png", sizes: "32x32" },
+      { url: "/brand/favicon-16x16.png", type: "image/png", sizes: "16x16" },
+    ],
+    apple: [
+      { url: "/brand/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+    shortcut: ["/favicon.ico"],
+  },
+  manifest: "/manifest.json",
 };
 
 export default function RootLayout({

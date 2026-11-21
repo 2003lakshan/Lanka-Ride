@@ -204,7 +204,7 @@ export async function sendPasswordResetOtpEmail(
   const mailOptions = {
     from,
     to: cleanTo,
-    subject: "Your Lanka Airport Ride Password Reset Code",
+    subject: "Your At Your Service Password Reset Code",
     text: `Your password reset verification code is: ${otpCode}\n\nThis code will expire in 10 minutes.\n\nIf you did not request a password reset, you can safely ignore this email.`,
     html: `
       <!DOCTYPE html>
@@ -220,15 +220,16 @@ export async function sendPasswordResetOtpEmail(
             <td align="center">
               <table width="100%" max-width="500" style="max-width: 500px; background-color: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);" cellpadding="0" cellspacing="0">
                 <tr>
-                  <td style="background-color: #2563eb; padding: 24px; text-align: center;">
-                    <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 700; letter-spacing: 0.5px;">Lanka Airport Ride</h1>
+                  <td style="background-color: #102a43; padding: 24px; text-align: center;">
+                    <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 700; letter-spacing: 0.5px;">At Your Service</h1>
+                    <p style="color: #e5a72c; margin: 4px 0 0 0; font-size: 11px; font-weight: 600;">Powered by Pexora</p>
                   </td>
                 </tr>
                 <tr>
                   <td style="padding: 32px 28px;">
                     <h2 style="color: #0f172a; margin-top: 0; font-size: 18px; font-weight: 600;">Password Reset Request</h2>
                     <p style="color: #475569; font-size: 14px; line-height: 1.6; margin-bottom: 24px;">
-                      We received a request to reset the password for your Lanka Airport Ride account. Use the 6-digit verification code below to proceed:
+                      We received a request to reset the password for your At Your Service account. Use the 6-digit verification code below to proceed:
                     </p>
                     <div style="background-color: #f1f5f9; border-radius: 12px; padding: 18px; text-align: center; margin-bottom: 24px; border: 1px dashed #cbd5e1;">
                       <span style="font-family: monospace; font-size: 32px; font-weight: 700; color: #1e293b; letter-spacing: 8px;">${otpCode}</span>
@@ -244,7 +245,7 @@ export async function sendPasswordResetOtpEmail(
                 <tr>
                   <td style="background-color: #f8fafc; padding: 16px; text-align: center; border-top: 1px solid #e2e8f0;">
                     <p style="color: #94a3b8; font-size: 12px; margin: 0;">
-                      © ${new Date().getFullYear()} Lanka Airport Ride. All rights reserved.
+                      © ${new Date().getFullYear()} At Your Service – Powered by Pexora. All rights reserved.
                     </p>
                   </td>
                 </tr>
@@ -325,8 +326,8 @@ export async function sendPasswordChangedConfirmationEmail(
   const mailOptions = {
     from,
     to: cleanTo,
-    subject: "Security Alert: Lanka Airport Ride Password Changed",
-    text: `Hello ${userName || "Valued User"},\n\nYour password for Lanka Airport Ride was successfully changed at ${new Date().toUTCString()}.\n\nAll existing login sessions have been invalidated.\n\nIf you did not make this change, please contact support immediately.`,
+    subject: "Security Alert: At Your Service Password Changed",
+    text: `Hello ${userName || "Valued User"},\n\nYour password for At Your Service was successfully changed at ${new Date().toUTCString()}.\n\nAll existing login sessions have been invalidated.\n\nIf you did not make this change, please contact support immediately.`,
     html: `
       <!DOCTYPE html>
       <html>
@@ -341,8 +342,9 @@ export async function sendPasswordChangedConfirmationEmail(
             <td align="center">
               <table width="100%" max-width="500" style="max-width: 500px; background-color: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);" cellpadding="0" cellspacing="0">
                 <tr>
-                  <td style="background-color: #059669; padding: 24px; text-align: center;">
+                  <td style="background-color: #102a43; padding: 24px; text-align: center;">
                     <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 700;">Password Changed Successfully</h1>
+                    <p style="color: #e5a72c; margin: 4px 0 0 0; font-size: 11px; font-weight: 600;">At Your Service – Powered by Pexora</p>
                   </td>
                 </tr>
                 <tr>
@@ -351,7 +353,7 @@ export async function sendPasswordChangedConfirmationEmail(
                       Hello ${userName || "there"},
                     </p>
                     <p style="color: #475569; font-size: 14px; line-height: 1.6; margin-bottom: 20px;">
-                      Your Lanka Airport Ride account password was updated on <strong>${new Date().toUTCString()}</strong>.
+                      Your At Your Service account password was updated on <strong>${new Date().toUTCString()}</strong>.
                     </p>
                     <div style="background-color: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 10px; padding: 14px; margin-bottom: 24px;">
                       <p style="color: #065f46; font-size: 13px; line-height: 1.5; margin: 0;">
@@ -359,14 +361,14 @@ export async function sendPasswordChangedConfirmationEmail(
                       </p>
                     </div>
                     <p style="color: #dc2626; font-size: 13px; line-height: 1.5; margin-bottom: 0;">
-                      If you did not request or make this change, please contact Lanka Airport Ride support immediately to secure your account.
+                      If you did not request or make this change, please contact At Your Service support immediately to secure your account.
                     </p>
                   </td>
                 </tr>
                 <tr>
                   <td style="background-color: #f8fafc; padding: 16px; text-align: center; border-top: 1px solid #e2e8f0;">
                     <p style="color: #94a3b8; font-size: 12px; margin: 0;">
-                      © ${new Date().getFullYear()} Lanka Airport Ride. All rights reserved.
+                      © ${new Date().getFullYear()} At Your Service – Powered by Pexora. All rights reserved.
                     </p>
                   </td>
                 </tr>
@@ -448,7 +450,7 @@ export async function sendContactVerificationOtpEmail(
   const mailOptions = {
     from,
     to: cleanTo,
-    subject: "Your Lanka Airport Ride Trip Verification Code",
+    subject: "Your At Your Service Trip Verification Code",
     text: `Your verification code for custom trip planning is: ${otpCode}\n\nThis code will expire in 10 minutes.\n\nIf you did not initiate this custom trip request, please ignore this email.`,
     html: `
       <!DOCTYPE html>
@@ -464,8 +466,9 @@ export async function sendContactVerificationOtpEmail(
             <td align="center">
               <table width="100%" max-width="500" style="max-width: 500px; background-color: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);" cellpadding="0" cellspacing="0">
                 <tr>
-                  <td style="background-color: #2563eb; padding: 24px; text-align: center;">
-                    <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 700; letter-spacing: 0.5px;">Lanka Airport Ride</h1>
+                  <td style="background-color: #102a43; padding: 24px; text-align: center;">
+                    <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 700; letter-spacing: 0.5px;">At Your Service</h1>
+                    <p style="color: #e5a72c; margin: 4px 0 0 0; font-size: 11px; font-weight: 600;">Powered by Pexora</p>
                   </td>
                 </tr>
                 <tr>
@@ -490,7 +493,7 @@ export async function sendContactVerificationOtpEmail(
                 <tr>
                   <td style="background-color: #f8fafc; padding: 16px; text-align: center; border-top: 1px solid #e2e8f0;">
                     <p style="color: #94a3b8; font-size: 12px; margin: 0;">
-                      © ${new Date().getFullYear()} Lanka Airport Ride. All rights reserved.
+                      © ${new Date().getFullYear()} At Your Service – Powered by Pexora. All rights reserved.
                     </p>
                   </td>
                 </tr>

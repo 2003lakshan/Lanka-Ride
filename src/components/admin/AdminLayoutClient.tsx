@@ -24,6 +24,7 @@ import {
   Activity,
   Layers
 } from "lucide-react";
+import BrandLogo from "@/components/brand/BrandLogo";
 
 export const adminNavItems = [
   { name: "Overview", href: "/admin", icon: Home, category: "Operations" },
@@ -225,17 +226,13 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
             ${isCollapsed ? "justify-center" : "justify-between"}
           `}>
             {/* Expanded Portal Brand Badge */}
-            {!isCollapsed && (
-              <div className="flex items-center gap-2.5 min-w-0 pl-1">
-                <div className="w-8 h-8 rounded-xl bg-linear-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center shrink-0 shadow-md">
-                  <Shield size={18} />
-                </div>
-                <div className="flex flex-col overflow-hidden">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-sm font-black text-white tracking-tight truncate">At Your Service</span>
-                  </div>
-                  <span className="text-[10px] text-[#E5A72C] font-semibold uppercase tracking-wider">Travel Operations</span>
-                </div>
+            {!isCollapsed ? (
+              <div className="flex items-center min-w-0 pl-1">
+                <BrandLogo variant="mobile-header" theme="dark" size="xs" linkToHome={true} />
+              </div>
+            ) : (
+              <div className="flex items-center justify-center">
+                <BrandLogo variant="icon" theme="dark" size="xs" linkToHome={true} />
               </div>
             )}
 
@@ -370,15 +367,7 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
         >
           {/* Drawer Header */}
           <div className="flex items-center justify-between p-4 border-b border-slate-800 bg-[#0C2033]">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-md">
-                <Shield size={18} />
-              </div>
-              <div>
-                <span className="font-bold text-white text-base">At Your Service</span>
-                <p className="text-[10px] text-[#E5A72C] font-semibold uppercase">Operations Hub</p>
-              </div>
-            </div>
+            <BrandLogo variant="mobile-header" theme="dark" size="sm" linkToHome={true} />
 
             <button
               ref={closeButtonRef}

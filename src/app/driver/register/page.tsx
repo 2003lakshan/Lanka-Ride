@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Car, ArrowRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
+import BrandLogo from "@/components/brand/BrandLogo";
 
 const SectionTitle = ({ title }: { title: string }) => (
   <h3 className="text-xl font-bold text-slate-800 border-b-2 border-slate-200 pb-3 mt-10 mb-6">{title}</h3>
@@ -156,8 +157,8 @@ export default function DriverRegistrationPage() {
     <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
       <div className="max-w-4xl mx-auto space-y-8 bg-white p-8 md:p-12 rounded-3xl shadow-xl border border-slate-200 z-10 relative">
         <div className="text-center">
-          <div className="mx-auto bg-slate-900 text-white w-16 h-16 rounded-2xl flex items-center justify-center mb-6 shadow-lg">
-            <Car size={32} />
+          <div className="flex justify-center mb-6">
+            <BrandLogo variant="icon" size="xl" linkToHome={true} />
           </div>
           <h2 className="text-3xl font-bold text-slate-900 tracking-tight">Driver Registration</h2>
           <p className="mt-2 text-sm text-slate-500 font-medium max-w-lg mx-auto">

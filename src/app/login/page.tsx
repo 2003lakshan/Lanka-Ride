@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { Plane, Mail, Lock, LogIn, ArrowRight, AlertCircle, Loader2 } from "lucide-react";
+import { Mail, Lock, LogIn, ArrowRight, AlertCircle, Loader2 } from "lucide-react";
 import { signIn, getSession } from "next-auth/react";
+import BrandLogo from "@/components/brand/BrandLogo";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -125,8 +126,8 @@ export default function LoginPage() {
 
       <div className="max-w-md w-full space-y-6 bg-white/90 backdrop-blur-xl p-8 sm:p-10 rounded-3xl shadow-xl border border-slate-100 z-10 relative">
         <div className="text-center">
-          <div className="mx-auto bg-blue-600 text-white w-14 h-14 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-blue-500/30">
-            <Plane size={28} />
+          <div className="flex justify-center mb-4">
+            <BrandLogo variant="icon" size="lg" linkToHome={true} />
           </div>
           <h2 className="text-3xl font-bold text-slate-900 tracking-tight">Welcome back</h2>
           <p className="mt-1 text-sm text-slate-500 font-medium">

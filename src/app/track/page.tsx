@@ -485,7 +485,7 @@ export default function TrackBookingPage() {
         <div className="text-center mb-10">
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 border border-blue-200 text-blue-700 rounded-full text-xs font-bold uppercase tracking-wider mb-3">
             <Navigation size={13} className="text-blue-600 animate-pulse" />
-            <span>Lanka Airport Ride • Live GPS</span>
+            <span>At Your Service • Live GPS Tracking</span>
           </div>
           <h1 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight mb-2">Track Your Ride</h1>
           <p className="text-slate-500 text-base max-w-xl mx-auto">Real-time driver location updates and road navigation for your airport ride.</p>

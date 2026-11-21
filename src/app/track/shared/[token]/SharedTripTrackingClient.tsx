@@ -25,6 +25,7 @@ import { io, Socket } from "socket.io-client";
 import { getSocketServerUrl } from "@/components/providers/SocketProvider";
 import { getWhatsAppSupportNumber, buildWhatsAppLink } from "@/lib/whatsapp";
 import type { SanitizedSharedBooking } from "@/lib/shareToken";
+import BrandLogo from "@/components/brand/BrandLogo";
 
 interface SharedTripTrackingClientProps {
   token: string;
@@ -262,20 +263,10 @@ export default function SharedTripTrackingClient({ token }: SharedTripTrackingCl
       <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-black text-sm shadow-sm">
-              AY
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-black tracking-tight text-slate-900 text-sm">
-                  At Your Service
-                </span>
-                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
-                  Shared View
-                </span>
-              </div>
-              <p className="text-[10px] text-slate-400 font-medium">Powered by Pexora</p>
-            </div>
+            <BrandLogo variant="mobile-header" size="xs" linkToHome={true} />
+            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 hidden sm:inline-block">
+              Shared View
+            </span>
           </div>
 
           <div className="flex items-center gap-3">

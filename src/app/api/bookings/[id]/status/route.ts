@@ -165,7 +165,7 @@ export async function POST(
           : `Trip Status: ${status.replace(/_/g, " ")}`;
 
         const notifMessage = isCompleted
-          ? `Your trip ${booking.bookingReference} has been completed. Thank you for choosing Lanka Airport Ride!`
+          ? `Your trip ${booking.bookingReference} has been completed. Thank you for choosing At Your Service – Powered by Pexora!`
           : status === "DRIVER_ARRIVED"
           ? "Your driver has arrived at the pickup location."
           : `Your booking ${booking.bookingReference} status changed to ${status.replace(/_/g, " ")}.`;

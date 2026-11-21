@@ -24,6 +24,7 @@ import {
 import { useSession, signOut } from "next-auth/react";
 import NotificationBell from "@/components/notifications/NotificationBell";
 import { RealtimeIndicator } from "@/components/providers/SocketProvider";
+import BrandLogo from "@/components/brand/BrandLogo";
 
 export default function Navbar() {
   const { data: session } = useSession();
@@ -98,16 +99,7 @@ export default function Navbar() {
         <div className="flex justify-between items-center h-20 gap-2 sm:gap-4 min-w-0">
           {/* Logo on the left */}
           <div className="shrink-0 flex items-center min-w-0">
-            <Link href="/" className="flex items-center gap-1.5 sm:gap-2 group min-w-0">
-              <div className="bg-linear-to-br from-blue-600 to-blue-800 text-white p-2 sm:p-2.5 rounded-xl shadow-md group-hover:shadow-blue-500/30 transition-all shrink-0">
-                <Plane size={22} className="w-5 h-5 sm:w-6 sm:h-6" />
-              </div>
-              <span className="font-extrabold text-base sm:text-lg xl:text-xl tracking-tight text-slate-900 ml-1 truncate">
-                <span className="hidden min-[420px]:inline">Lanka Airport </span>
-                <span className="min-[420px]:hidden">Lanka </span>
-                <span className="text-blue-600">Ride</span>
-              </span>
-            </Link>
+            <BrandLogo variant="responsive-header" size="md" />
           </div>
           
           {/* Desktop Navigation (visible on xl screens >= 1280px) */}
@@ -268,14 +260,11 @@ export default function Navbar() {
           ) : (
             /* Logged-Out Header Card with Login/Register action */
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl mb-2 flex items-center justify-between gap-2">
-              <div>
-                <p className="text-sm font-bold text-slate-900">Welcome to Lanka Ride</p>
-                <p className="text-xs text-slate-500">Sign in to book rides & track trips</p>
-              </div>
+              <BrandLogo variant="mobile-header" size="xs" linkToHome={false} />
               <Link
                 href="/login"
                 onClick={() => setMobileMenuOpen(false)}
-                className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3.5 py-2 rounded-lg shrink-0"
+                className="bg-[#102A43] hover:bg-slate-800 text-white text-xs font-bold px-3.5 py-2 rounded-lg shrink-0"
               >
                 Sign In
               </Link>

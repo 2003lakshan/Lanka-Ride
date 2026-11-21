@@ -333,7 +333,7 @@ ${appUrl}/packages/${data.packageId}
 Manage your packages in your driver portal:
 ${appUrl}/driver/packages
 
-Thank you for partnering with Lanka Airport Ride!`;
+Thank you for partnering with At Your Service – Powered by Pexora!`;
 }
 
 export interface PackageChangesRequestedData {

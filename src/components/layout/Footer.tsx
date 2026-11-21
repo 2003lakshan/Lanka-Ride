@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Plane, Globe, MessageCircle, Send, Mail, Phone, MapPin } from "lucide-react";
+import { Plane, Mail, Phone, MapPin, MessageSquare, Shield, Compass, Car, Package, Search } from "lucide-react";
+import BrandLogo from "@/components/brand/BrandLogo";
 
 export default function Footer() {
   const pathname = usePathname();
@@ -11,75 +12,138 @@ export default function Footer() {
   if (pathname.startsWith("/admin")) {
     return null;
   }
+
   return (
-    <footer className="bg-slate-900 text-slate-300">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-          <div className="col-span-1 md:col-span-1">
-            <Link href="/" className="flex items-center gap-2 mb-4">
-              <div className="bg-blue-600 text-white p-1.5 rounded-lg">
-                <Plane size={20} />
-              </div>
-              <span className="font-bold text-xl tracking-tight text-white">
-                Lanka Airport <span className="text-blue-500">Ride</span>
-              </span>
-            </Link>
-            <p className="text-sm text-slate-400 mb-6">
-              Reliable, comfortable, and safe airport transfers across beautiful Sri Lanka. Your journey begins with us.
+    <footer className="bg-[#102A43] text-slate-300 border-t border-slate-800">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10">
+          
+          {/* Brand Column */}
+          <div className="lg:col-span-2 space-y-4">
+            <BrandLogo variant="full" theme="dark" size="lg" />
+            
+            <p className="text-sm text-slate-400 max-w-sm leading-relaxed">
+              Premium, reliable Sri Lanka travel operations. Book verified airport transfers, design custom multi-day journeys, and explore curated chauffeur-driven itineraries with real-time GPS tracking.
             </p>
-            <div className="flex space-x-4">
-              <a href="#" className="text-slate-400 hover:text-white transition-colors"><Globe size={20} /></a>
-              <a href="#" className="text-slate-400 hover:text-white transition-colors"><MessageCircle size={20} /></a>
-              <a href="#" className="text-slate-400 hover:text-white transition-colors"><Send size={20} /></a>
+
+            <div className="pt-2 flex flex-wrap gap-2 text-xs">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800/80 text-slate-300 border border-slate-700/60 font-medium">
+                <Shield size={13} className="text-[#E5A72C]" /> Verified Chauffeurs
+              </span>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800/80 text-slate-300 border border-slate-700/60 font-medium">
+                <Search size={13} className="text-[#2563EB]" /> Live Ride Tracking
+              </span>
             </div>
           </div>
           
+          {/* Services Column */}
           <div>
-            <h3 className="text-white font-semibold mb-4 text-lg">Quick Links</h3>
-            <ul className="space-y-2 text-sm">
-              <li><Link href="/" className="hover:text-blue-400 transition-colors">Home</Link></li>
-              <li><Link href="/about" className="hover:text-blue-400 transition-colors">About Us</Link></li>
-              <li><Link href="/vehicles" className="hover:text-blue-400 transition-colors">Our Fleet</Link></li>
-              <li><Link href="/destinations" className="hover:text-blue-400 transition-colors">Destinations</Link></li>
-              <li><Link href="/contact" className="hover:text-blue-400 transition-colors">Contact Us</Link></li>
+            <h3 className="text-white font-bold mb-4 text-sm uppercase tracking-wider text-[#E5A72C]">
+              Travel Services
+            </h3>
+            <ul className="space-y-2.5 text-sm">
+              <li>
+                <Link href="/booking" className="hover:text-white transition-colors flex items-center gap-2">
+                  <Car size={14} className="text-[#2563EB]" />
+                  <span>Airport Transfers</span>
+                </Link>
+              </li>
+              <li>
+                <Link href="/trip-builder" className="hover:text-white transition-colors flex items-center gap-2">
+                  <Compass size={14} className="text-[#E5A72C]" />
+                  <span>Custom Trip Builder</span>
+                </Link>
+              </li>
+              <li>
+                <Link href="/packages" className="hover:text-white transition-colors flex items-center gap-2">
+                  <Package size={14} className="text-emerald-400" />
+                  <span>Tour Packages</span>
+                </Link>
+              </li>
+              <li>
+                <Link href="/track" className="hover:text-white transition-colors flex items-center gap-2">
+                  <Search size={14} className="text-cyan-400" />
+                  <span>Track Active Ride</span>
+                </Link>
+              </li>
             </ul>
           </div>
 
+          {/* Driver Network Column */}
           <div>
-            <h3 className="text-white font-semibold mb-4 text-lg">Services</h3>
-            <ul className="space-y-2 text-sm">
-              <li><Link href="/booking" className="hover:text-blue-400 transition-colors">Airport Pickup</Link></li>
-              <li><Link href="/booking" className="hover:text-blue-400 transition-colors">Airport Drop-off</Link></li>
-              <li><Link href="/booking" className="hover:text-blue-400 transition-colors">City Transfers</Link></li>
-              <li><Link href="/booking" className="hover:text-blue-400 transition-colors">Tour Packages</Link></li>
+            <h3 className="text-white font-bold mb-4 text-sm uppercase tracking-wider text-[#E5A72C]">
+              Driver Network
+            </h3>
+            <ul className="space-y-2.5 text-sm">
+              <li>
+                <Link href="/driver/register" className="hover:text-white transition-colors font-semibold text-blue-300 flex items-center gap-1.5">
+                  <span>Become a Driver</span>
+                  <span className="px-1.5 py-0.5 text-[10px] bg-blue-500/20 text-blue-300 rounded font-bold">Join</span>
+                </Link>
+              </li>
+              <li>
+                <Link href="/driver" className="hover:text-white transition-colors">
+                  Driver Dashboard
+                </Link>
+              </li>
+              <li>
+                <Link href="/driver/login" className="hover:text-white transition-colors">
+                  Driver Login
+                </Link>
+              </li>
+              <li>
+                <Link href="/driver/packages" className="hover:text-white transition-colors">
+                  Driver Package Management
+                </Link>
+              </li>
             </ul>
           </div>
 
+          {/* Contact & Support */}
           <div>
-            <h3 className="text-white font-semibold mb-4 text-lg">Contact Info</h3>
+            <h3 className="text-white font-bold mb-4 text-sm uppercase tracking-wider text-[#E5A72C]">
+              Support &amp; Contact
+            </h3>
             <ul className="space-y-3 text-sm">
-              <li className="flex items-start gap-3">
-                <MapPin size={18} className="text-blue-500 mt-0.5 flex-shrink-0" />
-                <span>123 Airport Road, Katunayake, Sri Lanka</span>
+              <li className="flex items-start gap-2.5">
+                <MapPin size={16} className="text-[#E5A72C] mt-0.5 shrink-0" />
+                <span className="text-slate-300">123 Airport Road, Katunayake, Sri Lanka</span>
               </li>
-              <li className="flex items-center gap-3">
-                <Phone size={18} className="text-blue-500 flex-shrink-0" />
-                <span>+94 77 123 4567</span>
+              <li className="flex items-center gap-2.5">
+                <Phone size={16} className="text-[#2563EB] shrink-0" />
+                <a href="tel:+94771234567" className="hover:text-white transition-colors">
+                  +94 77 123 4567
+                </a>
               </li>
-              <li className="flex items-center gap-3">
-                <Mail size={18} className="text-blue-500 flex-shrink-0" />
-                <span>bookings@lankaairportride.com</span>
+              <li className="flex items-center gap-2.5">
+                <Mail size={16} className="text-emerald-400 shrink-0" />
+                <a href="mailto:bookings@lankaairportride.com" className="hover:text-white transition-colors truncate">
+                  bookings@lankaairportride.com
+                </a>
+              </li>
+              <li className="pt-2">
+                <Link
+                  href="/contact"
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-white border border-slate-700 transition-colors"
+                >
+                  <MessageSquare size={14} className="text-[#E5A72C]" />
+                  <span>Send an Enquiry</span>
+                </Link>
               </li>
             </ul>
           </div>
+
         </div>
         
-        <div className="border-t border-slate-800 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center text-sm text-slate-500">
-          <p>&copy; {new Date().getFullYear()} Lanka Airport Ride. All rights reserved.</p>
-          <div className="flex space-x-4 mt-4 md:mt-0">
+        {/* Bottom Legal Bar */}
+        <div className="border-t border-slate-800/80 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center text-xs text-slate-400 gap-4">
+          <p>
+            &copy; {new Date().getFullYear()} <strong className="text-slate-200">At Your Service – Powered by Pexora</strong>. All rights reserved.
+          </p>
+          <div className="flex flex-wrap items-center gap-6">
             <Link href="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link>
             <Link href="/terms" className="hover:text-white transition-colors">Terms of Service</Link>
-            <Link href="/contact" className="hover:text-white transition-colors">Contact</Link>
+            <Link href="/contact" className="hover:text-white transition-colors">Contact Support</Link>
           </div>
         </div>
       </div>

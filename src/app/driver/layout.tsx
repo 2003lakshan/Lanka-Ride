@@ -1,7 +1,7 @@
 import React from "react";
 
 export const metadata = {
-  title: "Driver Dashboard | Lanka Airport Ride",
+  title: "Driver Dashboard | At Your Service – Powered by Pexora",
   description: "Driver Portal - Manage available trips, navigate pickups, and track earnings.",
 };
 
